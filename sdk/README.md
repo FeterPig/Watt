@@ -32,28 +32,29 @@ Watt 的电量来源全部是插件：宿主加载 DLL 后并行调用，统一�
 
 在仓库根目录执行：
 
-```powershell
-# 1) 构建示例（工程引用 src/Watt.Plugin.Contracts 源码，不需要预编译 SDK）
+```cmd
+:: 1) 构建示例（工程引用 src/Watt.Plugin.Contracts 源码，不需要预编译 SDK）
 dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Release
-# 产物：sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll
+:: 产物：sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll
 
-# 2) 完全退出 Watt（右键托盘 → 退出，或 taskkill /IM Watt.exe /F）
-# 3) 放到用户插件目录（升级 Watt 不会被覆盖）
-$plugins = Join-Path $env:LOCALAPPDATA 'Watt\plugins'
-New-Item -ItemType Directory -Force $plugins | Out-Null
-Copy-Item .\sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll $plugins -Force
+:: 2) 完全退出 Watt（右键托盘 → 退出，或 taskkill /IM Watt.exe /F）
+:: 3) 放到用户插件目录（升级 Watt 不会被覆盖）
+set "PLUGINS=%LOCALAPPDATA%\Watt\plugins"
+if not exist "%PLUGINS%" mkdir "%PLUGINS%"
+copy /Y ".\sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll" "%PLUGINS%"
 
-# 4) 用已安装的 Watt 验证
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --plugins "$env:TEMP\plugins.txt"
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --selftest "$env:TEMP\selftest.json"
-Get-Content "$env:TEMP\plugins.txt", "$env:TEMP\selftest.json"
+:: 4) 用已安装的 Watt 验证
+"%LOCALAPPDATA%\Programs\Watt\Watt.exe" --plugins "%TEMP%\plugins.txt"
+"%LOCALAPPDATA%\Programs\Watt\Watt.exe" --selftest "%TEMP%\selftest.json"
+type "%TEMP%\plugins.txt"
+type "%TEMP%\selftest.json"
 ```
 
 预期：`--plugins` 出现 `sample-demo`，`--selftest` 多出 `Sample Keyboard 42%`。
 示例是假数据，验证后从 `plugins` 目录删除对应 DLL 并重启 Watt。
 
-> 如果从源码运行而不是安装版：先运行 `.\build.ps1`，再用
-> `.\dist\Watt\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
+> 如果从源码运行而不是安装版：先运行 `.\build.cmd`，再用
+> `.\dist\Watt-2.1.0-win-x64\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
 
 ## 适配新设备的流程
 
@@ -116,5 +117,5 @@ Watt 升级导致契约版本变化时，重新用新版安装目录的 DLL 编�
 
 ## 契约版本
 
-当前 Watt 2.0.0，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
+当前 Watt 2.1.0，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
 插件应使用与目标 Watt 版本匹配的 Contracts/Support DLL 编译。

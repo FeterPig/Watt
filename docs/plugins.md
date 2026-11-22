@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.0.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.1.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -118,24 +118,26 @@ BatteryService.ScanAsync
 
 仓库里有一个可构建的示例插件：[`sdk/sample/Watt.Plugin.Sample/`](../sdk/sample/Watt.Plugin.Sample/)。它永远返回一台虚拟的 `Sample Keyboard`（42%），用来验证“插件加载 → 扫描 → JSON 输出”整条链路。
 
-```powershell
-# 在仓库根目录
+```cmd
+:: 在仓库根目录
 dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Release
 
-# 产物：
-# sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll
+:: 产物：
+:: sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll
 ```
 
 把 DLL 放到用户插件目录并重启 Watt：
 
-```powershell
-$dir = Join-Path $env:LOCALAPPDATA 'Watt\plugins'
-New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item .\sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll $dir -Force
+```cmd
+set "PLUGINS=%LOCALAPPDATA%\Watt\plugins"
+if not exist "%PLUGINS%" mkdir "%PLUGINS%"
+copy /Y ".\sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.dll" "%PLUGINS%"
 
-# 完全退出 Watt 后重新启动，或直接用诊断模式验证：
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --plugins "$env:TEMP\plugins.txt"
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --selftest "$env:TEMP\selftest.json"
+:: 完全退出 Watt 后重新启动，或直接用诊断模式验证：
+"%LOCALAPPDATA%\Programs\Watt\Watt.exe" --plugins "%TEMP%\plugins.txt"
+"%LOCALAPPDATA%\Programs\Watt\Watt.exe" --selftest "%TEMP%\selftest.json"
+type "%TEMP%\plugins.txt"
+type "%TEMP%\selftest.json"
 ```
 
 预期：
@@ -144,7 +146,8 @@ Copy-Item .\sdk\sample\Watt.Plugin.Sample\bin\Release\net48\Watt.Plugin.Sample.d
 - `--selftest` 的 `devices` 多出 `Sample Keyboard`（`percent=42`）；
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
-> 从源码运行时，先执行 `.\build.ps1`，然后用 `.\dist\Watt\Watt.exe --selftest ...`；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> 从源码运行时，先执行 `.\build.cmd`，然后用
+> `.\dist\Watt-2.1.0-win-x64\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -320,8 +323,8 @@ return new PeripheralDevice
 
 1. 先运行诊断，确认目标设备不是 AEP/HFP/BLE GATT 已覆盖的标准设备：
 
-   ```powershell
-   & "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --diagnose "$env:TEMP\watt-diag.txt"
+   ```cmd
+   "%LOCALAPPDATA%\Programs\Watt\Watt.exe" --diagnose "%TEMP%\watt-diag.txt"
    ```
 
    报告包含：插件加载结果、蓝牙 AEP 设备与属性、HFP 节点电量、全部 HID 集合（VID/PID/usage/报文长度）、被动词 HID 原始报文、各插件读取结果。
@@ -427,11 +430,9 @@ public sealed class MyPlugin : BatteryPluginBase
 
 构建机通常没有 NuGet 源：
 
-```powershell
-$env:DOTNET_CLI_HOME = (Resolve-Path '.dotnet-home').Path
-$env:NUGET_PACKAGES  = Join-Path (Get-Location) '.nuget-packages'
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+```cmd
+set "DOTNET_CLI_HOME=%CD%\.dotnet-home"
+set "NUGET_PACKAGES=%CD%\.nuget-packages"
 dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Release
 ```
 
@@ -463,7 +464,7 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 - 把插件 DLL 放到 `%LOCALAPPDATA%\Watt\plugins`，完全退出 Watt 再启动；
 - 不要覆盖 `<安装目录>\plugins` 里的内置 DLL（升级会被替换）；
 - 删除插件 DLL 并重启即可移除插件；
-- 第三方插件目录不会被 `install.ps1` 覆盖，但 `uninstall.ps1` 会删除 `%LOCALAPPDATA%\Watt`。
+- 第三方插件目录不会被 `install.cmd` 覆盖，但 `uninstall.cmd` 会删除 `%LOCALAPPDATA%\Watt`（可用 `--keep-data` 保留）。
 
 ---
 

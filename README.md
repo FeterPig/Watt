@@ -1,5 +1,7 @@
 # Watt — 外设电量悬浮窗
 
+当前版本：**2.1.0**
+
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
 ![Watt 悬浮窗（浅色）](docs/images/panel-light.png)
@@ -91,18 +93,20 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 
 要求：Windows 11 x64，自带 .NET Framework 4.8 即可运行，无需安装任何运行时，**不需要管理员权限**。
 
-从发布页下载并解压后，目录中应包含 `Watt.exe`、`Watt.exe.config`、`Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`、`plugins\`、`install.ps1`。在该目录打开 PowerShell：
+从发布页下载并解压后，目录中应包含 `Watt.exe`、`Watt.exe.config`、`Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`、`Watt.Setup.exe`、`plugins\`、`install.cmd`、`uninstall.cmd`。安装不需要 PowerShell，也不修改执行策略；双击 `install.cmd`，或在命令提示符中执行：
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```cmd
+install.cmd
 ```
 
-脚本会：
+`Watt.Setup.exe` 会：
 
 - 复制程序运行时文件到 `%LOCALAPPDATA%\Programs\Watt\`（含 `plugins\`）；
 - 注册开机自启（`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Watt` 值）；
 - 创建开始菜单快捷方式 `Watt.lnk`；
 - 启动 Watt。
+
+可选参数直接传给 `install.cmd`，例如 `install.cmd --no-start`、`install.cmd --install-dir D:\Apps\Watt`。也可以直接运行 `Watt.Setup.exe install`。
 
 之后每次登录 Windows，Watt 会自动出现在托盘。第三方插件放在 `%LOCALAPPDATA%\Watt\plugins\` 即可，不需要改安装目录。
 
@@ -115,43 +119,57 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 ## 卸载
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+在解压后的发行版目录中双击 `uninstall.cmd`，或在命令提示符中执行：
+
+```cmd
+uninstall.cmd
 ```
 
-停止进程、删除自启项、删除开始菜单快捷方式、`%LOCALAPPDATA%\Programs\Watt`，以及 `%LOCALAPPDATA%\Watt` 下的缓存/第三方插件数据。
+会停止进程、删除自启项、删除开始菜单快捷方式、`%LOCALAPPDATA%\Programs\Watt`，以及 `%LOCALAPPDATA%\Watt` 下的缓存/第三方插件数据。确认提示可以输入 `y`；非交互场景使用 `uninstall.cmd --yes --keep-data` 保留缓存与用户插件。
 
 ## 从源码构建
 
 需要 .NET SDK 9 与 Windows 10/11 SDK 的 `Windows.winmd`（默认查找
 `C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd`，
-可用 `-p:WinmdPath=...` 覆盖）。构建完全离线，不需要 NuGet。
+可用 `-p:WinmdPath=...` 覆盖）。构建完全离线，不需要 NuGet，也不使用 PowerShell：
 
-```powershell
+```cmd
 cd watt
-.\build.ps1            # 构建所有工程并汇总运行时到 dist\Watt\
-.\build.ps1 -NoStage   # 只编译，不生成 dist\Watt\
+build.cmd
 ```
 
-`build.ps1` 会依次构建：
+`build.cmd` 会依次构建：
 
 - `src/Watt`（宿主）；
+- `src/Watt.Setup`（安装/卸载程序）；
 - `src/Watt.Plugin.Contracts`、`src/Watt.Plugin.Support`（插件 SDK）；
 - `src/Watt.Plugins.*`（内置插件）；
-- 把运行时布局汇总到 `dist\Watt\`：
+- 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt\
+dist\Watt-2.1.0-win-x64\
 ├─ Watt.exe
 ├─ Watt.exe.config
 ├─ Watt.Plugin.Contracts.dll
 ├─ Watt.Plugin.Support.dll
-└─ plugins\
-   ├─ Watt.Plugins.Windows.dll
-   └─ Watt.Plugins.BleGatt.dll
+├─ Watt.Setup.exe              # C# 安装/卸载程序，无需 PowerShell
+├─ install.cmd
+├─ uninstall.cmd
+├─ plugins\
+│  ├─ Watt.Plugins.Windows.dll
+│  └─ Watt.Plugins.BleGatt.dll
+├─ README.md
+└─ docs\
 ```
 
-构建完成后运行 `.\install.ps1` 安装到当前用户；安装脚本默认从 `dist\Watt` 读取运行时文件。更详细的构建/安装/卸载说明见 [docs/install.md](docs/install.md)。
+构建完成后安装：
+
+```cmd
+cd dist\Watt-2.1.0-win-x64
+install.cmd
+```
+
+仓库根目录只负责构建，不包含安装/卸载入口；安装和卸载脚本只存在于构建产物目录中。更详细的构建/安装/卸载说明见 [docs/install.md](docs/install.md)。
 
 ## 插件开发
 
@@ -201,6 +219,7 @@ watt/
 │  │  ├─ Tray/                  # 托盘图标、右键菜单、一级托盘固定
 │  │  ├─ UI/                    # 悬浮窗、面板、主题、图标字形
 │  │  └─ Diagnostics/           # --snapshot / --diagnose
+│  ├─ Watt.Setup/               # C# 安装/卸载程序；templates 下是发行版 cmd 包装器
 │  ├─ Watt.Plugin.Contracts/    # 公共插件 SDK（模型 + IBatteryPlugin 接口）
 │  ├─ Watt.Plugin.Support/      # 插件复用库（HID、WinRT、设备分类、HFP 读取）
 │  ├─ Watt.Plugins.Windows/     # 内置插件：Windows AEP + HFP 节点
@@ -210,14 +229,12 @@ watt/
 ├─ tools/IconGen/               # 托盘/应用图标生成器（矢量 → 多尺寸 ICO）
 ├─ assets/                      # 托盘/应用图标与设计预览
 ├─ docs/                        # 安装、插件契约、设备支持、图标说明
-├─ build.ps1
-├─ install.ps1
-├─ uninstall.ps1
+├─ build.cmd                    # 构建并生成 dist\Watt-<version>-win-x64
 ├─ README.md
 └─ .gitignore
 ```
 
-`dist/` 是 `build.ps1` 生成的编译产物，不在仓库中提交。
+`dist/` 是 `build.cmd` 生成的发行版目录/zip，不在仓库中提交；安装和卸载入口只出现在发行版目录里。
 
 ## 已知限制
 

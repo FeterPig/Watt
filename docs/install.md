@@ -1,183 +1,157 @@
-# Building, installing and uninstalling Watt
+# 构建、安装与卸载
 
-Watt is a per-user Windows tray app (no administrator rights required). This document
-covers the offline build, the install/uninstall scripts, and where autostart is
-registered.
+Watt 2.1.0 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
+`dist\Watt-2.1.0-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
+也不需要修改 PowerShell 执行策略。
 
-## Requirements
+## 构建要求
 
-- Windows 10/11 (developed on Windows 11 build 26300).
-- .NET Framework 4.8 runtime (installed on Windows 11 by default).
-- .NET SDK 9 **only for building**. The build is fully offline: no NuGet feed is needed
-  because the project targets net48 and only references the locally installed .NET
-  Framework 4.8 reference assemblies and the Windows SDK WinRT metadata.
-- PowerShell 5.1 (or newer) for the scripts. No extra modules are required.
+- Windows 10/11 x64；
+- .NET SDK 9（用于构建；运行只需要 .NET Framework 4.8，Windows 11 自带）；
+- Windows 10/11 SDK 的 `Windows.winmd`，默认路径
+  `C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd`，
+  可用 `-p:WinmdPath=...` 覆盖；
+- 不需要 NuGet 源；构建完全离线。
 
-## Build
+## 从源码构建
 
-From the `watt` folder:
+在仓库根目录执行：
 
-```powershell
-.\build.ps1
+```cmd
+build.cmd
 ```
 
-What `build.ps1` does:
+`build.cmd` 会：
 
-1. points the .NET SDK at workspace-local state
-   (`..\.dotnet-home`, `..\.nuget-packages`) so no user-level SDK state is touched,
-2. runs `dotnet build src\Watt\Watt.csproj -c Release` (offline) which also builds the
-   `Watt.Plugin.Contracts` / `Watt.Plugin.Support` SDK assemblies,
-3. builds every `src\Watt.Plugins.*` plugin project,
-4. stages the runtime layout into `watt\dist\Watt\`:
+1. 构建 `src\Watt\Watt.csproj`（宿主，连带构建 Contracts/Support）；
+2. 构建 `src\Watt.Setup\Watt.Setup.csproj`（安装/卸载程序）；
+3. 构建 `src\Watt.Plugins.*` 下的所有内置插件；
+4. 生成发行版目录：
 
    ```
-   Watt.exe
-   Watt.exe.config
-   Watt.Plugin.Contracts.dll
-   Watt.Plugin.Support.dll
-   plugins\Watt.Plugins.*.dll   (5 built-in plugins)
+   dist\Watt-2.1.0-win-x64\
+     Watt.exe
+     Watt.exe.config
+     Watt.Plugin.Contracts.dll
+     Watt.Plugin.Support.dll
+     Watt.Setup.exe
+     install.cmd
+     uninstall.cmd
+     plugins\
+       Watt.Plugins.Windows.dll
+       Watt.Plugins.BleGatt.dll
+     README.md
+     docs\
    ```
 
-Use `.\build.ps1 -NoStage` to build without touching `dist\`. The script exits non-zero
-when the build fails.
+5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.1.0-win-x64.zip`。
 
-Manual equivalent if you prefer raw dotnet (the plugin projects are next to the app):
+构建失败时脚本返回非零退出码；没有单独的“只编译不打包”参数，需要时直接 `dotnet build`
+单个工程即可。
 
-```powershell
-$env:DOTNET_CLI_HOME = (Resolve-Path '..\.dotnet-home').Path
-$env:NUGET_PACKAGES  = (Resolve-Path '..\.nuget-packages').Path
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-dotnet build src\Watt\Watt.csproj -c Release
-Get-ChildItem src -Directory -Filter 'Watt.Plugins.*' | ForEach-Object {
-    dotnet build (Join-Path $_.FullName ($_.Name + '.csproj')) -c Release
-}
+## 安装（普通用户）
+
+下载并解压发行版后，进入解压目录，双击 `install.cmd`，或在命令提示符中执行：
+
+```cmd
+install.cmd
 ```
 
-## Install (per user)
+`Watt.Setup.exe` 会：
 
-From the `watt` folder:
+1. 停止已运行的 Watt；
+2. 删除旧安装目录并复制运行时文件到 `%LOCALAPPDATA%\Programs\Watt\`（含 `plugins\`）；
+3. 注册当前用户登录自启（`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Watt` 值）；
+4. 创建开始菜单快捷方式 `Watt.lnk`；
+5. 启动 Watt。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+安装是 per-user 的，不需要管理员权限，不写系统级目录，也不需要 PowerShell。
+
+### 安装参数
+
+参数直接传给 `install.cmd`，例如：
+
+```cmd
+install.cmd --install-dir D:\Apps\Watt
+install.cmd --no-start
+install.cmd --no-autostart --no-shortcut
 ```
 
-The script is idempotent (running it again refreshes the install) and does:
-
-1. stops a running `Watt.exe` so the files can be replaced,
-2. copies only the runtime payload (`Watt.exe`, `Watt.exe.config`, the two SDK DLLs and the
-   `plugins\` folder) from `watt\dist\Watt\` into `%LOCALAPPDATA%\Programs\Watt\` — `docs\`,
-   `sdk\` and the install scripts are not copied,
-3. registers autostart at logon (see below),
-4. creates the Start Menu shortcut
-   `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Watt.lnk`,
-5. starts Watt.
-
-Optional switches: `-NoStart` (install without launching), `-NoAutostart` (skip the Run
-key registration), `-NoShortcut` (skip the Start Menu shortcut).
-
-Installed layout:
-
-| Path | Purpose |
+| 参数 | 作用 |
 | --- | --- |
-| `%LOCALAPPDATA%\Programs\Watt\Watt.exe` | application |
-| `%LOCALAPPDATA%\Programs\Watt\Watt.exe.config` | runtime config |
-| `%LOCALAPPDATA%\Programs\Watt\Watt.Plugin.Contracts.dll` | public plugin SDK |
-| `%LOCALAPPDATA%\Programs\Watt\Watt.Plugin.Support.dll` | plugin helper library |
-| `%LOCALAPPDATA%\Programs\Watt\plugins\*.dll` | built-in battery plugins |
-| `%LOCALAPPDATA%\Programs\Watt\watt-startup.log` | diagnostics log (created at runtime) |
-| `%LOCALAPPDATA%\Watt\last-known.json` | last-known battery cache (keeps sleeping devices visible) |
-| `%LOCALAPPDATA%\Watt\plugins\*.dll` | optional third-party plugins (loaded after built-ins) |
-| `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Watt.lnk` | Start Menu shortcut |
-| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value `Watt` | autostart at logon |
+| `--install-dir DIR` | 自定义安装目录（默认 `%LOCALAPPDATA%\Programs\Watt`） |
+| `--no-start` | 安装后不启动 Watt |
+| `--no-autostart` | 不写 HKCU Run 自启项 |
+| `--no-shortcut` | 不创建开始菜单快捷方式 |
+| `--no-stop` | 不停止已运行的 Watt（仅自动化/测试用） |
 
-## Autostart registration
+也可以直接运行 `Watt.Setup.exe install [参数]`。
 
-Watt autostarts for the current user through the standard per-user Run key:
+### 安装后的目录
 
+| 路径 | 内容 |
+| --- | --- |
+| `%LOCALAPPDATA%\Programs\Watt\Watt.exe` | 主程序 |
+| `%LOCALAPPDATA%\Programs\Watt\Watt.Plugin.Contracts.dll` | 插件契约 |
+| `%LOCALAPPDATA%\Programs\Watt\Watt.Plugin.Support.dll` | 插件辅助库 |
+| `%LOCALAPPDATA%\Programs\Watt\plugins\*.dll` | 内置插件 |
+| `%LOCALAPPDATA%\Watt\last-known.json` | 电量缓存 |
+| `%LOCALAPPDATA%\Watt\plugins\*.dll` | 第三方插件（建议放这里） |
+| `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Watt.lnk` | 开始菜单快捷方式 |
+| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Watt` 值 | 登录自启 |
+
+## 卸载
+
+在发行版目录中双击 `uninstall.cmd`，或执行：
+
+```cmd
+uninstall.cmd
 ```
+
+默认会先确认，然后：
+
+- 停止 Watt；
+- 删除 HKCU Run 自启值；
+- 删除开始菜单快捷方式；
+- 删除 `%LOCALAPPDATA%\Programs\Watt`；
+- 删除 `%LOCALAPPDATA%\Watt`（缓存和第三方插件数据）；
+- 清理该程序对应的 Windows 通知区域设置。
+
+非交互或保留数据：
+
+```cmd
+uninstall.cmd --yes --keep-data
+```
+
+| 参数 | 作用 |
+| --- | --- |
+| `--yes` | 跳过确认 |
+| `--keep-data` | 保留 `%LOCALAPPDATA%\Watt`（缓存、用户插件） |
+| `--install-dir DIR` | 指定要删除的安装目录；默认从 HKCU Run 值推断，否则用默认目录 |
+| `--no-autostart` / `--no-shortcut` / `--no-notify` | 分别跳过注册表/快捷方式/通知区域清理 |
+| `--no-stop` | 不停止主程序（仅测试用） |
+
+## 自启注册
+
+```text
 HKCU\Software\Microsoft\Windows\CurrentVersion\Run
     Watt = "C:\Users\<you>\AppData\Local\Programs\Watt\Watt.exe"
 ```
 
-The value is the quoted path of the installed executable. Verify it with:
-
-```powershell
-Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name Watt
-Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name Watt
-```
-
-or without PowerShell:
+可用以下命令查看：
 
 ```cmd
 reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 ```
 
-The app manages this value through `Watt.Services.StartupService`:
-`IsEnabled` / `RegisteredCommand` to inspect, `Enable()` / `Disable()` to toggle, and
-`EnsureEnabled(exePath)` to repair a stale path after the install location changes.
-The tray icon's right-click menu exposes the same toggle ("开机自启"), and the app
-re-registers the Run value automatically when it is started from the installed
-`%LOCALAPPDATA%\Programs\Watt` folder.
+## 常见问题
 
-## Uninstall (per user)
-
-From the `watt` folder:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
-```
-
-The script is idempotent and does:
-
-1. stops a running `Watt.exe`,
-2. removes the `Watt` value from the HKCU Run key,
-3. removes `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Watt.lnk`,
-4. removes `%LOCALAPPDATA%\Programs\Watt` recursively,
-5. removes the local battery cache in `%LOCALAPPDATA%\Watt`.
-
-It does not touch `watt\dist\` or `watt\src\` (the development build). As a safety
-guard it refuses to delete an install folder whose leaf name is not `Watt`.
-
-## Verifying an install
-
-```powershell
-# 1. files
-Get-ChildItem "$env:LOCALAPPDATA\Programs\Watt"
-# 2. autostart
-(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name Watt).Watt
-# 3. shortcut
-Test-Path (Join-Path ([Environment]::GetFolderPath('Programs')) 'Watt.lnk')
-# 4. run it; starting it a second time must not create a second tray icon, the
-#    running instance just shows its panel
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe"
-# 5. toggle Windows Settings > Personalization > Colors between Light and Dark;
-#    the panel and tray icon follow the new theme
-# 6. the tray icon should sit on the primary notification area (next to the input
-#    method / network / volume icons), not inside the "^" overflow flyout
-```
-
-## Troubleshooting
-
-- **Build fails without a network**: use `.\build.ps1`; if the SDK complains about NuGet,
-  make sure `NUGET_PACKAGES` points at `watt\..\.nuget-packages` and that the project is
-  not referencing packages (it targets net48 and references the local framework only).
-- **`install.ps1` fails with "Access is denied" on the registry key**: the process is
-  running with a restricted/low-integrity token (for example inside a sandboxed
-  automation environment). Run the script from a normal user PowerShell window; no admin
-  rights are needed, but HKCU writes must be allowed.
-- **App does not start at logon**: check the Run value above, then check
-  `%LOCALAPPDATA%\Programs\Watt\watt-startup.log`.
-- **Two tray icons**: only one Watt process should run; the second instance signals the
-  first via `Local\Watt.SingleInstance` / `Local\Watt.SingleInstance.Activate` and exits.
-  Kill leftover processes with `Get-Process Watt | Stop-Process -Force`.
-
-## Test-only script parameters
-
-For automated testing against temporary locations (never used by normal installs):
-
-- `install.ps1`: `-InstallDir <dir>`, `-SourceDir <dir>`, `-RunKeyPath <HKCU:\...>`,
-  `-RunValueName <name>`, `-ShortcutName <name>`, `-StartMenuDir <dir>` plus the switches
-  listed above.
-- `uninstall.ps1`: the matching `-InstallDir`, `-RunKeyPath`, `-RunValueName`,
-  `-ShortcutName`, `-StartMenuDir`.
+- **`dotnet` 找不到**：安装 .NET SDK 9，并确保 `dotnet` 在 PATH 中。
+- **构建提示找不到 `Windows.winmd`**：安装 Windows 10/11 SDK，或用
+  `dotnet build ... -p:WinmdPath=...` 指定。
+- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.1.0-win-x64` 发行版目录运行
+  `install.cmd`，不要从源码目录运行。
+- **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
+- **卸载后缓存还在**：卸载默认删除 `%LOCALAPPDATA%\Watt`；使用 `--keep-data` 时会保留。
+- **企业策略禁止 exe**：`Watt.Setup.exe` 是普通 .NET Framework 控制台程序，未签名；如被
+  AppLocker/SmartScreen 拦截，需要按组织策略放行。

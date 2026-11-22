@@ -44,13 +44,9 @@ backgrounds (black tiles disappear into the dark-mode surface).
 
 Run from the workspace root (`watt\..`):
 
-```powershell
-$env:DOTNET_CLI_HOME=(Resolve-Path '.dotnet-home').Path
-$env:NUGET_PACKAGES=Join-Path (Get-Location) '.nuget-packages'
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT='1'
+```cmd
 dotnet build watt\tools\IconGen\IconGen.csproj -c Release
-.\watt\tools\IconGen\bin\Release\net48\IconGen.exe all
+watt\tools\IconGen\bin\Release\net48\IconGen.exe all
 ```
 
 `IconGen.exe` modes:

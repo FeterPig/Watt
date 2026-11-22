@@ -5,7 +5,7 @@ obj/
 **/bin/
 **/obj/
 
-# Local build state used by build.ps1 (created next to the repo when cloning)
+# Local build state (created next to the repo when cloning)
 .dotnet-home/
 .nuget-packages/
 **/.dotnet-home/

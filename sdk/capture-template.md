@@ -19,8 +19,8 @@
 
 运行：
 
-```powershell
-& "$env:LOCALAPPDATA\Programs\Watt\Watt.exe" --diagnose "$env:TEMP\watt-diag.txt"
+```cmd
+"%LOCALAPPDATA%\Programs\Watt\Watt.exe" --diagnose "%TEMP%\watt-diag.txt"
 ```
 
 把报告中的这些段落贴进来：
