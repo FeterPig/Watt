@@ -116,11 +116,16 @@ namespace Watt.Setup
 
             if (stop) StopWattProcesses();
 
-            if (Directory.Exists(installDir))
-            {
-                Directory.Delete(installDir, true);
-            }
+            // Keep the installation directory itself: Explorer associates the notification-area
+            // settings entry with this path, and deleting the folder during an in-place upgrade
+            // can make Explorer forget/park the icon in the overflow. Overwrite runtime files in
+            // place and replace only the plugins folder.
             Directory.CreateDirectory(installDir);
+            var existingPlugins = Path.Combine(installDir, "plugins");
+            if (Directory.Exists(existingPlugins))
+            {
+                Directory.Delete(existingPlugins, true);
+            }
 
             CopyFile(sourceDir, installDir, "Watt.exe");
             CopyFileIfExists(sourceDir, installDir, "Watt.exe.config");

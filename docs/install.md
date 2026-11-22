@@ -152,6 +152,10 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 - **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.1.0-win-x64` 发行版目录运行
   `install.cmd`，不要从源码目录运行。
 - **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
+- **托盘图标在二级托盘里**：Watt 会重试并重新注册图标；如果升级后 Explorer 完全没有生成
+  Watt 的设置项，Watt 会在约 15 秒后自动重启一次 Explorer 来恢复一级托盘图标。若仍无效，
+  检查 `HKCU\Control Panel\NotifyIconSettings` 中是否有 `ExecutablePath` 指向
+  `...\Programs\Watt\Watt.exe` 的项，以及 `IsPromoted` 是否为 1。
 - **卸载后缓存还在**：卸载默认删除 `%LOCALAPPDATA%\Watt`；使用 `--keep-data` 时会保留。
 - **企业策略禁止 exe**：`Watt.Setup.exe` 是普通 .NET Framework 控制台程序，未签名；如被
   AppLocker/SmartScreen 拦截，需要按组织策略放行。

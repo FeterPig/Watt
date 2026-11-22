@@ -243,7 +243,7 @@ watt/
 - 厂商私有协议（2.4G dongle、厂商 HID 协议、厂商查询帧等）默认不内置；需要时通过插件扩展，见 [插件开发文档](docs/plugins.md) 与 [支持设备与数据来源](docs/supported-devices.md)。
 - 本项目的构建、UI、托盘、自启与安装脚本已在 Windows 11 上验证；本机已实测标准蓝牙耳机 EDIFIER Fit900NB 的 HFP 节点电量，其他型号仍需实机确认。
 - 程序无网络访问、无遥测；只读取本机蓝牙/HID 设备 API、写入自启注册表项、日志和本地缓存。
-- 托盘图标置顶依赖 Windows 11 的通知区域设置（`HKCU\Control Panel\NotifyIconSettings` 的 `IsPromoted`）。如果系统策略或第三方任务栏工具拦截，可能需要重启一次 Explorer 或重新登录后生效；设置本身会自动重试。
+- 托盘图标置顶依赖 Windows 11 的通知区域设置（`HKCU\Control Panel\NotifyIconSettings` 的 `IsPromoted`）。正常启动/升级会重试并重新注册图标；如果升级后 Explorer 完全没有为 Watt 生成设置项，Watt 会在约 15 秒后自动重启一次 Explorer 来恢复一级托盘图标（只在缺失条目时触发，正常情况下不会重启）。如果系统策略或第三方任务栏工具拦截，可能仍需重新登录后生效。
 - 悬浮窗固定出现在主显示器（任务栏所在屏幕）的右下角；多显示器下不会跟随副屏任务栏。
 - 插件是进程内完全信任代码，没有沙箱；当前没有热加载/卸载机制。
 

@@ -66,6 +66,25 @@ namespace Watt.Tray
             _notifyIcon.Icon = icon;
         }
 
+        /// <summary>
+        /// Re-adds the notification icon. Explorer sometimes does not create the
+        /// NotifyIconSettings entry until an icon is registered again (for example after an
+        /// in-place upgrade); re-registering lets the tray promotion retry find its entry.
+        /// </summary>
+        public void ReRegister()
+        {
+            if (_disposed) return;
+            try
+            {
+                _notifyIcon.Visible = false;
+                _notifyIcon.Visible = true;
+            }
+            catch
+            {
+                // The icon may be gone during an Explorer restart; the next retry handles it.
+            }
+        }
+
         public void SetAutostart(bool enabled)
         {
             _autostartItem.Checked = enabled;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -36,6 +37,7 @@ namespace Watt
         private DispatcherTimer _promoteTimer;
         private int _promoteAttempts;
         private bool _promotionConfirmed;
+        private bool _explorerRestartAttempted;
         private HwndSource _taskbarMessageWindow;
         private int _taskbarCreatedMessage;
         private bool _refreshing;
@@ -234,6 +236,30 @@ namespace Watt
             _promoteTimer.Tick += delegate
             {
                 _promoteAttempts++;
+
+                // An in-place upgrade can leave Explorer without a settings entry for the
+                // new executable. Re-registering the icon makes Explorer create one, so the
+                // normal promotion path below can set IsPromoted on the next tick.
+                if (_promoteAttempts == 3 || _promoteAttempts == 12)
+                {
+                    if (_tray != null)
+                    {
+                        _tray.ReRegister();
+                        Trace("tray icon re-registered to let Explorer create its settings entry");
+                    }
+                }
+
+                // If Explorer never created a settings entry for this executable (observed after
+                // some in-place upgrades), no amount of registry retries can promote the icon.
+                // Restart Explorer once; its TaskbarCreated broadcast and fresh tray registration
+                // make it create the entry, then the normal retry below promotes it.
+                if (_promoteAttempts == 15 && !_explorerRestartAttempted &&
+                    !TrayPromotion.HasCurrentEntry())
+                {
+                    _explorerRestartAttempted = true;
+                    RestartExplorerForTray();
+                }
+
                 if (TrayPromotion.EnsurePromoted())
                 {
                     _promotionConfirmed = true;
@@ -250,6 +276,35 @@ namespace Watt
                 Trace("tray promotion not confirmed yet (will retry after Explorer restarts)");
             };
             _promoteTimer.Start();
+        }
+
+        private void RestartExplorerForTray()
+        {
+            Trace("tray settings entry is missing; restarting Explorer once to recreate it");
+            try
+            {
+                foreach (var process in Process.GetProcessesByName("explorer"))
+                {
+                    try
+                    {
+                        if (!process.HasExited) process.Kill();
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+
+                Thread.Sleep(800);
+                if (Process.GetProcessesByName("explorer").Length == 0)
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace("Explorer restart for tray promotion failed: " + ex.GetType().Name + ": " + ex.Message);
+            }
         }
 
         /// <summary>

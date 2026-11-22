@@ -90,17 +90,56 @@ namespace Watt.Tray
             }
         }
 
+        /// <summary>True if Explorer has a settings entry for this executable, even if it is
+        /// currently not promoted. Used to decide whether a missing entry needs an Explorer
+        /// refresh (rather than a registry-only retry).</summary>
+        internal static bool HasCurrentEntry()
+        {
+            try
+            {
+                var exePath = CurrentExecutablePath;
+                if (string.IsNullOrEmpty(exePath)) return false;
+
+                using (var root = Registry.CurrentUser.OpenSubKey(SettingsKeyPath))
+                {
+                    if (root == null) return false;
+                    foreach (var id in root.GetSubKeyNames())
+                    {
+                        try
+                        {
+                            using (var entry = root.OpenSubKey(id))
+                            {
+                                if (entry == null) continue;
+                                if (IsSameExecutable(entry.GetValue(ExePathValue) as string, exePath))
+                                    return true;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore malformed entries.
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Treat an unreadable key as missing; the caller will retry.
+            }
+            return false;
+        }
+
         private static bool IsSameExecutable(string registeredPath, string exePath)
         {
             if (string.IsNullOrEmpty(registeredPath)) return false;
             try
             {
-                return string.Equals(Path.GetFullPath(registeredPath), Path.GetFullPath(exePath),
-                    StringComparison.OrdinalIgnoreCase);
+                return string.Equals(Path.GetFullPath(registeredPath.Trim('"')),
+                    Path.GetFullPath(exePath.Trim('"')), StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
-                return string.Equals(registeredPath, exePath, StringComparison.OrdinalIgnoreCase);
+                return string.Equals(registeredPath.Trim('"'), exePath.Trim('"'),
+                    StringComparison.OrdinalIgnoreCase);
             }
         }
     }
