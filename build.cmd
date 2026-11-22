@@ -57,10 +57,6 @@ for /d %%D in ("%ROOT%\src\Watt.Plugins.*") do (
     if errorlevel 1 goto fail
 )
 
-copy /Y "src\Watt.Setup\templates\install.cmd" "%RELEASE%\" >nul
-if errorlevel 1 goto fail
-copy /Y "src\Watt.Setup\templates\uninstall.cmd" "%RELEASE%\" >nul
-if errorlevel 1 goto fail
 copy /Y "README.md" "%RELEASE%\" >nul
 if errorlevel 1 goto fail
 if exist "LICENSE" (
@@ -90,7 +86,7 @@ if errorlevel 1 (
 echo.
 echo [build] OK
 echo [build] release: %RELEASE%
-echo [build] install: run install.cmd from the release folder
+echo [build] install: run Watt.Setup.exe from the release folder
 popd
 exit /b 0
 

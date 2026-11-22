@@ -93,10 +93,14 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 
 要求：Windows 11 x64，自带 .NET Framework 4.8 即可运行，无需安装任何运行时，**不需要管理员权限**。
 
-从发布页下载并解压后，目录中应包含 `Watt.exe`、`Watt.exe.config`、`Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`、`Watt.Setup.exe`、`plugins\`、`install.cmd`、`uninstall.cmd`。安装不需要 PowerShell，也不修改执行策略；双击 `install.cmd`，或在命令提示符中执行：
+从发布页下载并解压后，目录中应包含 `Watt.exe`、`Watt.exe.config`、`Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`、`Watt.Setup.exe`、`plugins\`。安装不需要 PowerShell，也不修改执行策略。
 
-```cmd
-install.cmd
+最直接的方式是双击 `Watt.Setup.exe`，在控制台菜单中选择：
+
+```
+1. 安装 / Install
+2. 卸载 / Uninstall
+0. 退出 / Exit
 ```
 
 `Watt.Setup.exe` 会：
@@ -106,7 +110,9 @@ install.cmd
 - 创建开始菜单快捷方式 `Watt.lnk`；
 - 启动 Watt。
 
-可选参数直接传给 `install.cmd`，例如 `install.cmd --no-start`、`install.cmd --install-dir D:\Apps\Watt`。也可以直接运行 `Watt.Setup.exe install`。
+需要命令行/自动化时可以直接运行 `Watt.Setup.exe install` 并附加参数，例如 `Watt.Setup.exe install --no-start`、`Watt.Setup.exe install --install-dir D:\Apps\Watt`。
+
+卸载可以双击 `Watt.Setup.exe` 选择「2. 卸载」，或运行 `Watt.Setup.exe uninstall`。
 
 之后每次登录 Windows，Watt 会自动出现在托盘。第三方插件放在 `%LOCALAPPDATA%\Watt\plugins\` 即可，不需要改安装目录。
 
@@ -119,13 +125,13 @@ install.cmd
 
 ## 卸载
 
-在解压后的发行版目录中双击 `uninstall.cmd`，或在命令提示符中执行：
+在解压后的发行版目录中双击 `Watt.Setup.exe`，选择「2. 卸载」，或在命令提示符中执行：
 
 ```cmd
-uninstall.cmd
+Watt.Setup.exe uninstall
 ```
 
-会停止进程、删除自启项、删除开始菜单快捷方式、`%LOCALAPPDATA%\Programs\Watt`，以及 `%LOCALAPPDATA%\Watt` 下的缓存/第三方插件数据。确认提示可以输入 `y`；非交互场景使用 `uninstall.cmd --yes --keep-data` 保留缓存与用户插件。
+会停止进程、删除自启项、删除开始菜单快捷方式、`%LOCALAPPDATA%\Programs\Watt`，以及 `%LOCALAPPDATA%\Watt` 下的缓存/第三方插件数据。确认提示可以输入 `y`；非交互场景使用 `Watt.Setup.exe uninstall --yes --keep-data` 保留缓存与用户插件。
 
 ## 从源码构建
 
@@ -152,9 +158,7 @@ dist\Watt-2.1.0-win-x64\
 ├─ Watt.exe.config
 ├─ Watt.Plugin.Contracts.dll
 ├─ Watt.Plugin.Support.dll
-├─ Watt.Setup.exe              # C# 安装/卸载程序，无需 PowerShell
-├─ install.cmd
-├─ uninstall.cmd
+├─ Watt.Setup.exe              # C# 交互式安装/卸载程序，无需 PowerShell
 ├─ plugins\
 │  ├─ Watt.Plugins.Windows.dll
 │  └─ Watt.Plugins.BleGatt.dll
@@ -162,14 +166,14 @@ dist\Watt-2.1.0-win-x64\
 └─ docs\
 ```
 
-构建完成后安装：
+构建完成后双击 `dist\Watt-2.1.0-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
 cd dist\Watt-2.1.0-win-x64
-install.cmd
+Watt.Setup.exe
 ```
 
-仓库根目录只负责构建，不包含安装/卸载入口；安装和卸载脚本只存在于构建产物目录中。更详细的构建/安装/卸载说明见 [docs/install.md](docs/install.md)。
+仓库根目录只负责构建，不包含安装/卸载入口；安装和卸载程序只存在于构建产物目录中。更详细的构建/安装/卸载说明见 [docs/install.md](docs/install.md)。
 
 ## 插件开发
 

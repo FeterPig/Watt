@@ -38,8 +38,7 @@ namespace Watt.Setup
             {
                 if (args == null || args.Length == 0)
                 {
-                    PrintUsage();
-                    return 2;
+                    return RunInteractive();
                 }
 
                 switch (args[0].ToLowerInvariant())
@@ -64,6 +63,54 @@ namespace Watt.Setup
                 Console.Error.WriteLine("ERROR: " + ex.GetType().Name + ": " + ex.Message);
                 return 1;
             }
+        }
+
+        private static int RunInteractive()
+        {
+            PrintBanner();
+            Console.WriteLine("  1. 安装 / Install");
+            Console.WriteLine("  2. 卸载 / Uninstall");
+            Console.WriteLine("  0. 退出 / Exit");
+            Console.WriteLine();
+            Console.Write("请选择 / Select: ");
+
+            var choice = (Console.ReadLine() ?? string.Empty).Trim();
+            int code;
+            switch (choice)
+            {
+                case "1":
+                    code = Install(new[] { "install" });
+                    break;
+                case "2":
+                    code = Uninstall(new[] { "uninstall" });
+                    break;
+                case "":
+                case "0":
+                    return 0;
+                default:
+                    Console.Error.WriteLine("Invalid choice: " + choice);
+                    Pause();
+                    return 2;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(code == 0 ? "Done." : "Failed with exit code " + code + ".");
+            Pause();
+            return code;
+        }
+
+        private static void Pause()
+        {
+            if (Console.IsInputRedirected) return;
+            Console.Write("Press Enter to exit...");
+            Console.ReadLine();
+        }
+
+        private static void PrintBanner()
+        {
+            Console.WriteLine("Watt.Setup 2.1.0 - per-user installer/uninstaller");
+            Console.WriteLine("No administrator rights are required.");
+            Console.WriteLine();
         }
 
         private static int Install(string[] args)
@@ -301,7 +348,7 @@ namespace Watt.Setup
                 {
                     throw new FileNotFoundException(
                         "Runtime payload is incomplete: " + file +
-                        ". Run build.cmd and start install.cmd from the release folder.");
+                        ". Run build.cmd, then start Watt.Setup.exe from the release folder.");
                 }
             }
 
@@ -311,7 +358,7 @@ namespace Watt.Setup
             {
                 throw new DirectoryNotFoundException(
                     "Runtime payload is incomplete: plugins folder has no DLLs. " +
-                    "Start install.cmd from the built release folder.");
+                    "Start Watt.Setup.exe from the built release folder.");
             }
         }
 
@@ -500,14 +547,13 @@ namespace Watt.Setup
 
         private static void PrintUsage()
         {
-            Console.WriteLine("Watt.Setup 2.1.0 - per-user installer/uninstaller");
-            Console.WriteLine();
+            PrintBanner();
             Console.WriteLine("Usage:");
             Console.WriteLine("  Watt.Setup.exe install   [--install-dir DIR] [--no-start] [--no-autostart] [--no-shortcut] [--no-stop]");
             Console.WriteLine("  Watt.Setup.exe uninstall [--install-dir DIR] [--yes] [--keep-data] [--no-autostart] [--no-shortcut] [--no-notify] [--no-stop]");
             Console.WriteLine();
-            Console.WriteLine("Run install.cmd / uninstall.cmd from the extracted release folder.");
-            Console.WriteLine("No administrator rights are required; everything is per-user.");
+            Console.WriteLine("Run without arguments for the interactive menu.");
+            Console.WriteLine("Command line: Watt.Setup.exe install | uninstall [options]");
         }
     }
 }

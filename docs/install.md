@@ -35,8 +35,6 @@ build.cmd
      Watt.Plugin.Contracts.dll
      Watt.Plugin.Support.dll
      Watt.Setup.exe
-     install.cmd
-     uninstall.cmd
      plugins\
        Watt.Plugins.Windows.dll
        Watt.Plugins.BleGatt.dll
@@ -51,16 +49,36 @@ build.cmd
 
 ## 安装（普通用户）
 
-下载并解压发行版后，进入解压目录，双击 `install.cmd`，或在命令提示符中执行：
+下载并解压发行版后，有两种方式。
+
+### 方式一：双击 Watt.Setup.exe（推荐）
+
+双击发行版根目录的 `Watt.Setup.exe`，控制台会显示交互菜单：
+
+```
+Watt.Setup 2.1.0 - per-user installer/uninstaller
+
+  1. 安装 / Install
+  2. 卸载 / Uninstall
+  0. 退出 / Exit
+
+请选择 / Select:
+```
+
+选择 `1` 安装、`2` 卸载、`0` 退出。安装/卸载结束后会提示按回车关闭窗口。
+
+### 方式二：命令行
+
+也可以直接运行 `Watt.Setup.exe install`：
 
 ```cmd
-install.cmd
+Watt.Setup.exe install
 ```
 
 `Watt.Setup.exe` 会：
 
 1. 停止已运行的 Watt；
-2. 删除旧安装目录并复制运行时文件到 `%LOCALAPPDATA%\Programs\Watt\`（含 `plugins\`）；
+2. 保留安装目录本身，覆盖运行时文件并替换 `plugins\` 文件夹；
 3. 注册当前用户登录自启（`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Watt` 值）；
 4. 创建开始菜单快捷方式 `Watt.lnk`；
 5. 启动 Watt。
@@ -69,12 +87,12 @@ install.cmd
 
 ### 安装参数
 
-参数直接传给 `install.cmd`，例如：
+参数直接传给 `Watt.Setup.exe install`，例如：
 
 ```cmd
-install.cmd --install-dir D:\Apps\Watt
-install.cmd --no-start
-install.cmd --no-autostart --no-shortcut
+Watt.Setup.exe install --install-dir D:\Apps\Watt
+Watt.Setup.exe install --no-start
+Watt.Setup.exe install --no-autostart --no-shortcut
 ```
 
 | 参数 | 作用 |
@@ -102,10 +120,10 @@ install.cmd --no-autostart --no-shortcut
 
 ## 卸载
 
-在发行版目录中双击 `uninstall.cmd`，或执行：
+在发行版目录中双击 `Watt.Setup.exe` 选择「2. 卸载」，或执行：
 
 ```cmd
-uninstall.cmd
+Watt.Setup.exe uninstall
 ```
 
 默认会先确认，然后：
@@ -120,7 +138,7 @@ uninstall.cmd
 非交互或保留数据：
 
 ```cmd
-uninstall.cmd --yes --keep-data
+Watt.Setup.exe uninstall --yes --keep-data
 ```
 
 | 参数 | 作用 |
@@ -150,7 +168,7 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 - **构建提示找不到 `Windows.winmd`**：安装 Windows 10/11 SDK，或用
   `dotnet build ... -p:WinmdPath=...` 指定。
 - **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.1.0-win-x64` 发行版目录运行
-  `install.cmd`，不要从源码目录运行。
+  `Watt.Setup.exe`，不要从源码目录运行。
 - **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
 - **托盘图标在二级托盘里**：Watt 会重试并重新注册图标；如果升级后 Explorer 完全没有生成
   Watt 的设置项，Watt 会在约 15 秒后自动重启一次 Explorer 来恢复一级托盘图标。若仍无效，

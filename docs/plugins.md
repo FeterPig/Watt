@@ -464,7 +464,7 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 - 把插件 DLL 放到 `%LOCALAPPDATA%\Watt\plugins`，完全退出 Watt 再启动；
 - 不要覆盖 `<安装目录>\plugins` 里的内置 DLL（升级会被替换）；
 - 删除插件 DLL 并重启即可移除插件；
-- 第三方插件目录不会被 `install.cmd` 覆盖，但 `uninstall.cmd` 会删除 `%LOCALAPPDATA%\Watt`（可用 `--keep-data` 保留）。
+- 第三方插件目录不会被 `install` 覆盖，但 `uninstall` 会删除 `%LOCALAPPDATA%\Watt`（可用 `--keep-data` 保留）。
 
 ---
 
