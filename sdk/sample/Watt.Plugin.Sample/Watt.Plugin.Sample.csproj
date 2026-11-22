@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Watt 示例插件（net48 classlib，离线构建，不依赖 NuGet）。
+
+    这是 docs/plugins.md 中的完整示例：实现一个永远返回虚拟设备 "Sample Keyboard" 的插件。
+    它只引用公共 SDK 契约 Watt.Plugin.Contracts；如果真实插件需要 HID / WinRT 辅助代码，
+    再额外引用 ..\..\..\src\Watt.Plugin.Support\Watt.Plugin.Support.csproj。
+
+    构建（在仓库根目录执行）：
+      $env:DOTNET_CLI_HOME = (Resolve-Path '.dotnet-home').Path
+      $env:NUGET_PACKAGES  = Join-Path (Get-Location) '.nuget-packages'
+      dotnet build watt\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Release
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Watt.Plugin.Sample</AssemblyName>
+    <RootNamespace>Watt.Samples</RootNamespace>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Watt.Plugin.Contracts\Watt.Plugin.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

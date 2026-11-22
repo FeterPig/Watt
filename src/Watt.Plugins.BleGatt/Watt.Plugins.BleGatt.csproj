@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Watt.Plugins.BleGatt</AssemblyName>
+    <RootNamespace>Watt.Plugins.BleGatt</RootNamespace>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <!-- Windows SDK union metadata with the WinRT projections (Bluetooth / GATT).
+         Override with -p:WinmdPath=... on a machine with a different SDK build. -->
+    <WinmdPath Condition="'$(WinmdPath)' == ''">C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd</WinmdPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Watt.Plugin.Contracts\Watt.Plugin.Contracts.csproj" />
+    <ProjectReference Include="..\Watt.Plugin.Support\Watt.Plugin.Support.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Windows">
+      <HintPath>$(WinmdPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

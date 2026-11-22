@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Watt.Plugin.Support</AssemblyName>
+    <RootNamespace>Watt</RootNamespace>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <WinmdPath Condition="'$(WinmdPath)' == ''">C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd</WinmdPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Watt.Plugin.Contracts\Watt.Plugin.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Windows">
+      <HintPath>$(WinmdPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+</Project>

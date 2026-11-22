@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Watt</AssemblyName>
+    <RootNamespace>Watt</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Version>2.0.0</Version>
+    <FileVersion>2.0.0.0</FileVersion>
+    <Company>Watt</Company>
+    <Product>Watt</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="Exists('..\..\assets\Watt.ico')">..\..\assets\Watt.ico</ApplicationIcon>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <!-- The build machine has no NuGet feed; everything below is resolved from the
+         locally installed .NET Framework 4.8 reference assemblies and Windows SDK. -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Windows 10/11 SDK union metadata containing the WinRT projections
+         (Bluetooth GATT / DeviceInformation). Override with -p:WinmdPath=... -->
+    <WinmdPath Condition="'$(WinmdPath)' == '' AND Exists('C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd')">C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd</WinmdPath>
+    <WinmdPath Condition="'$(WinmdPath)' == '' AND Exists('C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd') == false">$(MSBuildProgramFiles32)\Windows Kits\10\UnionMetadata\10.0.26100.0\Windows.winmd</WinmdPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Watt.Plugin.Contracts\Watt.Plugin.Contracts.csproj" />
+    <ProjectReference Include="..\Watt.Plugin.Support\Watt.Plugin.Support.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Windows">
+      <HintPath>$(WinmdPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\assets\tray-light.ico')">
+    <EmbeddedResource Include="..\..\assets\tray-light.ico">
+      <LogicalName>Watt.Assets.tray-light.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup Condition="Exists('..\..\assets\tray-dark.ico')">
+    <EmbeddedResource Include="..\..\assets\tray-dark.ico">
+      <LogicalName>Watt.Assets.tray-dark.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup Condition="Exists('..\..\assets\Watt.ico')">
+    <EmbeddedResource Include="..\..\assets\Watt.ico">
+      <LogicalName>Watt.Assets.Watt.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

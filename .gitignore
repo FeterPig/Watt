@@ -1,0 +1,32 @@
+# Build outputs (never commit)
+dist/
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Local build state used by build.ps1 (created next to the repo when cloning)
+.dotnet-home/
+.nuget-packages/
+**/.dotnet-home/
+**/.nuget-packages/
+
+# IDE / user state
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+
+# Runtime / test artifacts (root-level scratch only; docs/images/panel-*.png are documentation)
+*.log
+watt-startup.log
+selftest*.json
+diagnose*.txt
+/panel*.png
+*.tmp
+*.bak
+
+# OS junk
+Thumbs.db
+desktop.ini

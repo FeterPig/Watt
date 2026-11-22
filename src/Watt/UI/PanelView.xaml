@@ -1,0 +1,125 @@
+<UserControl x:Class="Watt.UI.PanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Watt.UI"
+             FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             TextOptions.TextFormattingMode="Ideal"
+             TextOptions.TextRenderingMode="Grayscale">
+    <Grid x:Name="Outer" Margin="22">
+        <Border x:Name="Card"
+                Width="288"
+                CornerRadius="12"
+                BorderThickness="1"
+                Background="#FFFFFFFF"
+                BorderBrush="#FFE7E7EA"
+                UseLayoutRounding="True">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="1" Direction="270"
+                                  Opacity="0.10" Color="#FF000000" />
+            </Border.Effect>
+
+            <Grid>
+                <ItemsControl x:Name="DeviceList" Margin="0,8" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="46">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{Binding Glyph}"
+                                           FontFamily="Segoe Fluent Icons"
+                                           FontSize="20"
+                                           Foreground="{Binding GlyphBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="18,0,0,0" />
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Name}"
+                                           Margin="14,0,12,0"
+                                           FontSize="13"
+                                           FontWeight="Medium"
+                                           Foreground="{Binding NameBrush}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextOptions.TextRenderingMode="Grayscale" />
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                            VerticalAlignment="Center" Margin="0,0,18,0">
+                                    <TextBlock Text="&#xE945;"
+                                               FontFamily="Segoe Fluent Icons"
+                                               FontSize="11"
+                                               Foreground="{Binding PercentBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,5,0"
+                                               Visibility="{Binding ChargingVisibility}" />
+                                    <TextBlock Text="{Binding PercentText}"
+                                               FontSize="13"
+                                               FontWeight="Medium"
+                                               Foreground="{Binding PercentBrush}"
+                                               VerticalAlignment="Center"
+                                               Typography.NumeralAlignment="Tabular" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Empty state: a single line, no icon, no hint copy. -->
+                <TextBlock x:Name="EmptyText"
+                           Text="未连接外设"
+                           FontSize="12.5"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="0,24"
+                           Visibility="Collapsed" />
+
+                <!-- Loading state: three quiet skeleton rows, no spinner, no label. -->
+                <StackPanel x:Name="LoadingHost" Margin="0,8" Visibility="Collapsed">
+                    <Grid Height="46">
+                        <TextBlock Text="&#xE92E;" FontFamily="Segoe Fluent Icons" FontSize="20"
+                                   Foreground="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}"
+                                   VerticalAlignment="Center" Margin="18,0,0,0" />
+                        <Border Width="110" Height="9" CornerRadius="4.5" HorizontalAlignment="Left"
+                                VerticalAlignment="Center" Margin="52,0,0,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                        <Border Width="30" Height="9" CornerRadius="4.5" HorizontalAlignment="Right"
+                                VerticalAlignment="Center" Margin="0,0,18,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                    </Grid>
+                    <Grid Height="46">
+                        <TextBlock Text="&#xE962;" FontFamily="Segoe Fluent Icons" FontSize="20"
+                                   Foreground="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}"
+                                   VerticalAlignment="Center" Margin="18,0,0,0" />
+                        <Border Width="82" Height="9" CornerRadius="4.5" HorizontalAlignment="Left"
+                                VerticalAlignment="Center" Margin="52,0,0,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                        <Border Width="30" Height="9" CornerRadius="4.5" HorizontalAlignment="Right"
+                                VerticalAlignment="Center" Margin="0,0,18,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                    </Grid>
+                    <Grid Height="46">
+                        <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons" FontSize="20"
+                                   Foreground="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}"
+                                   VerticalAlignment="Center" Margin="18,0,0,0" />
+                        <Border Width="96" Height="9" CornerRadius="4.5" HorizontalAlignment="Left"
+                                VerticalAlignment="Center" Margin="52,0,0,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                        <Border Width="30" Height="9" CornerRadius="4.5" HorizontalAlignment="Right"
+                                VerticalAlignment="Center" Margin="0,0,18,0"
+                                Background="{Binding SkeletonBrush, RelativeSource={RelativeSource AncestorType=local:PanelView}}" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
