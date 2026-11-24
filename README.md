@@ -1,6 +1,6 @@
 # Watt — 外设电量悬浮窗
 
-当前版本：**2.2.3**
+当前版本：**2.2.4**
 
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
@@ -145,6 +145,15 @@ cd watt
 build.cmd
 ```
 
+运行后会提示输入本次发布版本，例如：
+
+```text
+[build] Enter the release version, for example 2.2.4:
+Version: 
+```
+
+版本号只用于本次构建，不写死在 `build.cmd` 中；也可以非交互执行 `build.cmd 2.2.4`。输入的版本会同时写入主程序、安装器和发行目录/zip 名称。
+
 `build.cmd` 会依次构建：
 
 - `src/Watt`（宿主）；
@@ -154,7 +163,7 @@ build.cmd
 - 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt-2.2.3-win-x64\
+dist\Watt-2.2.4-win-x64\
 ├─ Watt.Setup.exe              # 一级目录：安装/卸载程序，避免误操作
 ├─ README.md
 ├─ docs\
@@ -168,10 +177,10 @@ dist\Watt-2.2.3-win-x64\
       └─ Watt.Plugins.BleGatt.dll
 ```
 
-构建完成后双击 `dist\Watt-2.2.3-win-x64\Watt.Setup.exe`，选择「1. 安装」：
+构建完成后双击 `dist\Watt-2.2.4-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
-cd dist\Watt-2.2.3-win-x64
+cd dist\Watt-2.2.4-win-x64
 Watt.Setup.exe
 ```
 
