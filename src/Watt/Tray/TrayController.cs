@@ -6,9 +6,9 @@ namespace Watt.Tray
 {
     /// <summary>
     /// Owns the notification-area icon and its minimal native menu. Left click toggles the
-    /// floating panel; right click offers only two things a tray app actually needs:
-    /// autostart and quit. All visual styling lives here so no second-level menu ever
-    /// leaks into the floating panel.
+    /// floating panel; right click offers only the actions a tray app actually needs:
+    /// open the plugin folder, autostart and quit. All visual styling lives here so no
+    /// second-level menu ever leaks into the floating panel.
     /// </summary>
     public sealed class TrayController : IDisposable
     {
@@ -19,6 +19,9 @@ namespace Watt.Tray
 
         public TrayController()
         {
+            var openPluginsItem = new ToolStripMenuItem("打开插件目录");
+            openPluginsItem.Click += delegate { Raise(OpenPluginFolderRequested); };
+
             _autostartItem = new ToolStripMenuItem("开机自启");
             _autostartItem.Click += delegate { Raise(AutostartToggleRequested); };
 
@@ -33,6 +36,7 @@ namespace Watt.Tray
                 Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
                 Renderer = new FlatMenuRenderer()
             };
+            _menu.Items.Add(openPluginsItem);
             _menu.Items.Add(_autostartItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(exitItem);
@@ -49,6 +53,7 @@ namespace Watt.Tray
         public event EventHandler Clicked;
         public event EventHandler ExitRequested;
         public event EventHandler AutostartToggleRequested;
+        public event EventHandler OpenPluginFolderRequested;
 
         public Icon CurrentIcon { get; private set; }
 

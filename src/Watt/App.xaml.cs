@@ -185,6 +185,7 @@ namespace Watt
             _tray.Clicked += delegate { TogglePanel(); };
             _tray.ExitRequested += delegate { Shutdown(); };
             _tray.AutostartToggleRequested += delegate { ToggleAutostart(); };
+            _tray.OpenPluginFolderRequested += delegate { OpenPluginFolder(); };
             _tray.Show(TrayAssets.LoadTrayIcon(_themeWatcher.TaskbarIsLight), _startupService.IsEnabled);
             ApplyTheme();
             StartTaskbarMessageHook();
@@ -441,6 +442,25 @@ namespace Watt
         {
             if (_window == null || _battery == null) return;
             _window.UpdateDevices(_battery.Devices, _battery.IsScanning);
+        }
+
+        private void OpenPluginFolder()
+        {
+            try
+            {
+                var folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins");
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+                Trace("opened plugin folder: " + folder);
+            }
+            catch (Exception ex)
+            {
+                Trace("open plugin folder failed: " + ex.GetType().Name + ": " + ex.Message);
+            }
         }
 
         private void ApplyTheme()

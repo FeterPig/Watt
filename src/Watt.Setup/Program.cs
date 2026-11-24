@@ -108,7 +108,7 @@ namespace Watt.Setup
 
         private static void PrintBanner()
         {
-            Console.WriteLine("Watt.Setup 2.2.2 - per-user installer/uninstaller");
+            Console.WriteLine("Watt.Setup 2.2.3 - per-user installer/uninstaller");
             Console.WriteLine("No administrator rights are required.");
             Console.WriteLine();
         }
@@ -145,7 +145,7 @@ namespace Watt.Setup
                 }
             }
 
-            // 2.2.2+ release layout: Watt.Setup.exe sits at the top level and the actual runtime
+            // 2.2.3+ release layout: Watt.Setup.exe sits at the top level and the actual runtime
             // payload is in app\ so users do not accidentally launch Watt.exe directly.
             var baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             var sourceDir = Path.Combine(baseDir, "app");
