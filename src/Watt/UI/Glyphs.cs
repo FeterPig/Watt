@@ -24,6 +24,8 @@ namespace Watt.UI
         public const string Bluetooth = "\uE702";  // Bluetooth
         public const string Battery = "\uE83F";    // Battery10 (generic battery glyph)
         public const string Refresh = "\uE72C";    // Refresh (manual-refresh button)
+        public const string Edit = "\uE70F";       // Edit (pencil, name edit mode)
+        public const string Close = "\uE711";      // Cancel (x, remove device)
 
         public static string ForKind(DeviceKind kind)
         {

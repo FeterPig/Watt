@@ -26,8 +26,47 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Quiet header: transient refresh feedback + one circular refresh button. -->
+                <!-- Quiet header: edit names on the left, transient refresh feedback and refresh on the right. -->
                 <Grid Grid.Row="0" Height="34" Margin="0,8,12,0">
+                    <Button x:Name="EditButton"
+                            Width="26"
+                            Height="26"
+                            Padding="0"
+                            Margin="18,0,0,0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Focusable="False"
+                            Cursor="Hand"
+                            ToolTip="修改设备名"
+                            Click="EditButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Chrome"
+                                        CornerRadius="13"
+                                        Background="Transparent">
+                                    <TextBlock Text="{x:Static local:Glyphs.Edit}"
+                                               FontFamily="Segoe Fluent Icons"
+                                               FontSize="14"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{TemplateBinding Foreground}" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Chrome" Property="Background"
+                                                Value="{DynamicResource RefreshHoverBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Chrome" Property="Background"
+                                                Value="{DynamicResource RefreshPressedBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
@@ -78,7 +117,7 @@
                 </Grid>
 
                 <Grid Grid.Row="1">
-                    <ItemsControl x:Name="DeviceList" Margin="0,0,0,8" IsHitTestVisible="False">
+                    <ItemsControl x:Name="DeviceList" Margin="0,0,0,8">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel />
@@ -91,6 +130,7 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Text="{Binding Glyph}"
@@ -102,16 +142,34 @@
 
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Name}"
-                                               Margin="14,0,12,0"
+                                               Margin="14,0,8,0"
                                                FontSize="13"
                                                FontWeight="Medium"
                                                Foreground="{Binding NameBrush}"
                                                VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding NameVisibility}"
                                                TextOptions.TextRenderingMode="Grayscale" />
 
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding EditableName, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="12,0,6,0"
+                                             Height="26"
+                                             VerticalAlignment="Center"
+                                             FontSize="13"
+                                             FontWeight="Medium"
+                                             Foreground="{Binding NameBrush}"
+                                             Background="Transparent"
+                                             BorderThickness="0,0,0,1"
+                                             Padding="2,1,2,2"
+                                             MaxLength="40"
+                                             VerticalContentAlignment="Center"
+                                             Visibility="{Binding EditVisibility}"
+                                             KeyDown="NameBox_KeyDown"
+                                             LostFocus="NameBox_LostFocus" />
+
                                     <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                                VerticalAlignment="Center" Margin="0,0,18,0">
+                                                VerticalAlignment="Center" Margin="0,0,6,0">
                                         <TextBlock Text="&#xE945;"
                                                    FontFamily="Segoe Fluent Icons"
                                                    FontSize="11"
@@ -126,6 +184,44 @@
                                                    VerticalAlignment="Center"
                                                    Typography.NumeralAlignment="Tabular" />
                                     </StackPanel>
+
+                                    <Button Grid.Column="3"
+                                            Width="22"
+                                            Height="22"
+                                            Margin="0,0,8,0"
+                                            Padding="0"
+                                            BorderThickness="0"
+                                            Background="Transparent"
+                                            Focusable="False"
+                                            Cursor="Hand"
+                                            ToolTip="删除设备"
+                                            Tag="{Binding}"
+                                            Click="DeleteButton_Click">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Chrome"
+                                                        CornerRadius="11"
+                                                        Background="Transparent">
+                                                    <TextBlock Text="{x:Static local:Glyphs.Close}"
+                                                               FontFamily="Segoe Fluent Icons"
+                                                               FontSize="11"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{Binding PercentBrush}" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Chrome" Property="Background"
+                                                                Value="{DynamicResource RefreshHoverBrush}" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="Chrome" Property="Background"
+                                                                Value="{DynamicResource RefreshPressedBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -73,6 +73,8 @@ watt\tools\IconGen\bin\Release\net48\IconGen.exe all
 | `Bluetooth` | `U+E702` | Bluetooth | 20 px 下干净清晰（经典蓝牙符文）。无需更换。 |
 | `Battery` | `U+E83F` | Battery10 | 通用满电池；`E850` 是 Battery0（空轮廓），`E85A` BatteryCharging0，`E996` BatteryUnknown。保留 `E83F` 作为规范“电池”字形；托盘/应用标记是自定义矢量，**不**使用此字形。无需更换。 |
 | `Refresh` | `U+E72C` | Refresh | 悬浮窗右上角的圆形手动刷新按钮，14 px；周围用 26 px 圆形透明底和极轻的 hover 底色，保持面板其他区域不变。 |
+| `Edit` | `U+E70F` | Edit | 悬浮窗左上角的铅笔按钮，用于切换设备名编辑模式，14 px。 |
+| `Close` | `U+E711` | Cancel | 每个设备行末尾的叉号删除按钮，11 px；仅删除面板中的行并记住隐藏状态，不写设备。 |
 
 被否决的候选：`E7E8` 是电源按钮字形（不是电池），`E83D` 渲染为通用实心形状，`E704` 是 InternetSharing，`E703` Connect 是设备配对字形。`E972/E975` 等也在接触表上检查过，都没有优于当前常量。
 

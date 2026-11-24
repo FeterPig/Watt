@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.2.4，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.2.5，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.2.4-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.2.5-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 

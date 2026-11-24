@@ -15,6 +15,7 @@ using Watt.Diagnostics;
 using Watt.Models;
 using Watt.Plugins;
 using Watt.Services;
+using Watt.Settings;
 using Watt.Tray;
 using Watt.UI;
 
@@ -31,6 +32,7 @@ namespace Watt
         private FloatingWindow _window;
         private PanelView _panel;
         private BatteryService _battery;
+        private DevicePreferences _devicePreferences;
         private PluginHost _pluginHost;
         private DispatcherTimer _refreshTimer;
         private DispatcherTimer _autoCloseTimer;
@@ -172,9 +174,17 @@ namespace Watt
             _themeWatcher.Changed += delegate { ApplyTheme(); };
             _themeWatcher.Start();
 
+            _devicePreferences = new DevicePreferences(Trace);
+
             _panel = new PanelView();
             _panel.SetDevices(new PeripheralDevice[0], true);
             _panel.RefreshRequested += OnManualRefreshRequested;
+            _panel.DeviceRenameRequested += OnDeviceRenameRequested;
+            _panel.DeviceDeleteRequested += OnDeviceDeleteRequested;
+            _panel.EditModeChanged += delegate
+            {
+                if (_panel != null && !_panel.IsEditing) UpdateBatterySnapshot();
+            };
             _window = new FloatingWindow(_panel);
             ApplyTheme();
 
@@ -441,7 +451,25 @@ namespace Watt
         private void UpdateBatterySnapshot()
         {
             if (_window == null || _battery == null) return;
-            _window.UpdateDevices(_battery.Devices, _battery.IsScanning);
+            var devices = _devicePreferences == null
+                ? _battery.Devices
+                : _devicePreferences.Apply(_battery.Devices);
+            _window.UpdateDevices(devices, _battery.IsScanning);
+        }
+
+        private void OnDeviceRenameRequested(object sender, DeviceActionEventArgs e)
+        {
+            if (_devicePreferences == null) return;
+            _devicePreferences.Rename(e.DeviceId, e.Name);
+            Trace("device renamed: " + e.DeviceId + " -> " + e.Name);
+        }
+
+        private void OnDeviceDeleteRequested(object sender, DeviceActionEventArgs e)
+        {
+            if (_devicePreferences == null) return;
+            _devicePreferences.Hide(e.DeviceId);
+            Trace("device hidden from panel: " + e.DeviceId);
+            UpdateBatterySnapshot();
         }
 
         private void OpenPluginFolder()
