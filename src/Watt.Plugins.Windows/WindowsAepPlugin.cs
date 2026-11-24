@@ -231,6 +231,11 @@ namespace Watt.Plugins.Windows
                 ProviderUtil.TryGetInt(properties, AepProperties.AepCodMajor),
                 ProviderUtil.TryGetInt(properties, AepProperties.AepCodMinor));
 
+            bool? connected = null;
+            bool connectedValue;
+            if (ProviderUtil.TryGetBool(properties, AepProperties.AepIsConnected, out connectedValue))
+                connected = connectedValue;
+
             // A paired device that is currently disconnected/asleep stays visible with a null
             // level; the host substitutes the last-known value instead of dropping the row.
             return Device(
@@ -239,7 +244,8 @@ namespace Watt.Plugins.Windows
                 kind,
                 percent.HasValue ? DeviceClassifier.ClampPercent(percent.Value) : (int?)null,
                 percent.HasValue && charging,
-                address);
+                address,
+                connected);
         }
 
         /// <summary>

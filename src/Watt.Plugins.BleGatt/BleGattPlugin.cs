@@ -264,7 +264,8 @@ namespace Watt.Plugins.BleGatt
                                 DeviceClassifier.Classify(normalizedName, null, null),
                                 DeviceClassifier.ClampPercent(level.Value),
                                 false,
-                                effectiveAddress);
+                                effectiveAddress,
+                                true);
                         }
                     }
                     finally

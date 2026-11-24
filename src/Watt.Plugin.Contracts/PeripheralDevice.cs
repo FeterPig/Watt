@@ -31,6 +31,11 @@ namespace Watt.Models
 
         public bool IsCharging { get; set; }
 
+        /// <summary>Current transport connection state when known: true = connected, false =
+        /// observed but disconnected/asleep, null = plugin cannot tell. The host uses this to
+        /// decide whether a manual refresh should drop a cache-only row.</summary>
+        public bool? IsConnected { get; set; }
+
         /// <summary>Id of the plugin that produced/last refreshed this reading (set by the host).</summary>
         public string SourceId { get; set; }
 

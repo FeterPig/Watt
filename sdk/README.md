@@ -54,7 +54,7 @@ type "%TEMP%\selftest.json"
 示例是假数据，验证后从 `plugins` 目录删除对应 DLL 并重启 Watt。
 
 > 如果从源码运行而不是安装版：先运行 `.\build.cmd`，再用
-> `.\dist\Watt-2.2.0-win-x64\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
+> `.\dist\Watt-2.2.1-win-x64\app\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
 
 ## 适配新设备的流程
 
@@ -117,5 +117,5 @@ Watt 升级导致契约版本变化时，重新用新版安装目录的 DLL 编�
 
 ## 契约版本
 
-当前 Watt 2.2.0，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
+当前 Watt 2.2.1，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
 插件应使用与目标 Watt 版本匹配的 Contracts/Support DLL 编译。

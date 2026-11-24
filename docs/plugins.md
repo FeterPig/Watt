@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.2.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.2.1，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.2.0-win-x64\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.2.1-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -249,6 +249,7 @@ public interface IPluginLogger
 | `Kind` | `Keyboard` / `Mouse` / `Headphone` / `Other`，决定图标。 |
 | `BatteryPercent` | 0–100；设备在但没有新读数时填 `null`（宿主会补缓存）。 |
 | `IsCharging` | 设备未上报充电状态时填 `false`。 |
+| `IsConnected` | 当前传输连接状态：`true` 已连接、`false` 已配对但断开/休眠、`null` 未知。手动刷新会移除 `IsConnected == false` 的缓存设备行；自动刷新仍保留休眠设备的 last-known 值。 |
 | `SourceId` | 不用填；宿主对有电量的观测统一覆写为插件 `Id`。 |
 | `Address` | 只有真实 48 位蓝牙 MAC 才填，格式 `aa:bb:cc:dd:ee:ff`；其他传输填 `null`，不要编造。 |
 
@@ -299,7 +300,11 @@ return new PeripheralDevice
 `PluginReadResult.Absent()` 表示该插件的整个传输层不存在。宿主会为它累计 absent 次数：
 
 - 连续 **3 次** absent 后，删除该插件名下的全部缓存设备；
-- 期间保留缓存行，避免接收器短暂抖动导致设备消失。
+- 期间保留缓存行，避免接收器短暂抖动导致设备消失；
+- **手动刷新**会立即删除该插件名下的缓存设备并重新加载列表。
+
+手动刷新还会移除插件明确报告 `IsConnected == false` 的缓存设备行；自动刷新仍保留
+`IsConnected == true` 但暂时无读数的休眠设备。
 
 ### 6.3 超时/异常
 

@@ -1,6 +1,6 @@
 # Watt — 外设电量悬浮窗
 
-当前版本：**2.2.0**
+当前版本：**2.2.1**
 
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
@@ -11,7 +11,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 - **开机自启**：安装时注册当前用户登录自启（`HKCU\...\Run`），无管理员权限。
 - **托盘常驻**：左键托盘图标切换悬浮窗；右键只有两项：`开机自启`、`退出 Watt`。图标会自动固定到**一级通知区域**（与输入法、网络、音量平级），不会藏进 `^` 溢出区。
 - **悬浮窗**：右下角浮层，随内容自适应高度；点击别处或按 `Esc` 关闭。
-- **手动刷新**：悬浮窗右上角有圆形刷新按钮，点击后重新扫描设备并更新电量；按钮旁会短暂显示「刷新中…」/「已刷新」反馈，不改变面板的其他布局。
+- **手动刷新**：悬浮窗右上角有圆形刷新按钮，点击后重新扫描设备并重新加载当前设备列表；插件报告为未连接的缓存设备会从列表中清除。按钮旁会短暂显示「刷新中…」/「已刷新」反馈。
 - **插件化电量来源**：每种读取方式都是独立插件 DLL，宿主并行调度、统一缓存与合并；默认内置 Windows 标准蓝牙与 BLE GATT 两种来源。未适配设备可按 [插件开发文档](docs/plugins.md) 写一个 DLL 放入 `plugins` 或 `%LOCALAPPDATA%\Watt\plugins`，无需改主程序。
 - **休眠保留**：外设休眠、暂时不响应或蓝牙耳机断开时，悬浮窗保留最后一次读到的电量并继续显示该设备；设备被拔除/取消配对后才移除；应用重启也会从本地缓存恢复。
 - **系统原生观感**：图标使用 Windows 11 自带的 Segoe Fluent Icons 线性图标；托盘图标为自绘黑色线稿（深色任务栏自动切换白色），透明背景。
@@ -94,7 +94,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 
 要求：Windows 11 x64，自带 .NET Framework 4.8 即可运行，无需安装任何运行时，**不需要管理员权限**。
 
-从发布页下载并解压后，目录中应包含 `Watt.exe`、`Watt.exe.config`、`Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`、`Watt.Setup.exe`、`plugins\`。安装不需要 PowerShell，也不修改执行策略。
+从发布页下载并解压后，一级目录只有安装程序 `Watt.Setup.exe`、`README.md`、`docs\` 和主程序目录 `app\`。主程序及附属 DLL、插件都在 `app\` 下，请通过 `Watt.Setup.exe` 安装，不要直接双击 `app\Watt.exe`。安装不需要 PowerShell，也不修改执行策略。
 
 最直接的方式是双击 `Watt.Setup.exe`，在控制台菜单中选择：
 
@@ -154,23 +154,24 @@ build.cmd
 - 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt-2.2.0-win-x64\
-├─ Watt.exe
-├─ Watt.exe.config
-├─ Watt.Plugin.Contracts.dll
-├─ Watt.Plugin.Support.dll
-├─ Watt.Setup.exe              # C# 交互式安装/卸载程序，无需 PowerShell
-├─ plugins\
-│  ├─ Watt.Plugins.Windows.dll
-│  └─ Watt.Plugins.BleGatt.dll
+dist\Watt-2.2.1-win-x64\
+├─ Watt.Setup.exe              # 一级目录：安装/卸载程序，避免误操作
 ├─ README.md
-└─ docs\
+├─ docs\
+└─ app\                        # 二级目录：主程序及其附属文件
+   ├─ Watt.exe
+   ├─ Watt.exe.config
+   ├─ Watt.Plugin.Contracts.dll
+   ├─ Watt.Plugin.Support.dll
+   └─ plugins\
+      ├─ Watt.Plugins.Windows.dll
+      └─ Watt.Plugins.BleGatt.dll
 ```
 
-构建完成后双击 `dist\Watt-2.2.0-win-x64\Watt.Setup.exe`，选择「1. 安装」：
+构建完成后双击 `dist\Watt-2.2.1-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
-cd dist\Watt-2.2.0-win-x64
+cd dist\Watt-2.2.1-win-x64
 Watt.Setup.exe
 ```
 

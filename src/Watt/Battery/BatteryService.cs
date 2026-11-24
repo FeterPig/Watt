@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -107,23 +107,45 @@ namespace Watt.Battery
         /// <summary>Raises a scan. Concurrent calls share the in-flight scan. The task never faults.</summary>
         public Task RefreshAsync(bool force)
         {
+            return RefreshAsync(force, false);
+        }
+
+        /// <summary>
+        /// Raises a scan. When <paramref name="removeDisconnected"/> is true (manual refresh),
+        /// devices observed as disconnected are removed from the cache immediately instead of
+        /// keeping their last-known row; a scan already in flight is awaited first so the manual
+        /// refresh always reloads the current device list.
+        /// </summary>
+        public Task RefreshAsync(bool force, bool removeDisconnected)
+        {
             lock (_sync)
             {
                 if (_disposed) return Task.FromResult(0);
-                if (_inflight != null && !_inflight.IsCompleted) return _inflight;
 
-                _inflight = Task.Run(() => RefreshCoreAsync());
+                if (_inflight != null && !_inflight.IsCompleted)
+                {
+                    if (!removeDisconnected) return _inflight;
+
+                    var previous = _inflight;
+                    return previous.ContinueWith(
+                        delegate { return RefreshAsync(true, true); },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default).Unwrap();
+                }
+
+                _inflight = Task.Run(() => RefreshCoreAsync(removeDisconnected));
                 return _inflight;
             }
         }
 
-        private async Task RefreshCoreAsync()
+        private async Task RefreshCoreAsync(bool removeDisconnected)
         {
             try
             {
                 var cancellationToken = _cancellation.Token;
                 SetScanning(true);
-                var snapshot = await ScanAsync(cancellationToken).ConfigureAwait(false);
+                var snapshot = await ScanAsync(cancellationToken, removeDisconnected).ConfigureAwait(false);
                 if (!cancellationToken.IsCancellationRequested) ReplaceDevices(snapshot);
             }
             catch
@@ -136,7 +158,8 @@ namespace Watt.Battery
             }
         }
 
-        private async Task<IReadOnlyList<PeripheralDevice>> ScanAsync(CancellationToken cancellationToken)
+        private async Task<IReadOnlyList<PeripheralDevice>> ScanAsync(CancellationToken cancellationToken,
+            bool removeDisconnected)
         {
             if (_plugins.Count == 0) return new PeripheralDevice[0];
 
@@ -171,6 +194,13 @@ namespace Watt.Battery
 
                 if (!outcome.Result.HardwarePresent)
                 {
+                    if (removeDisconnected)
+                    {
+                        LastKnownStore.RemoveByPlugin(plugin.Id);
+                        ResetAbsent(plugin.Id);
+                        continue;
+                    }
+
                     var absent = IncrementAbsent(plugin.Id);
                     if (absent >= MaxAbsentScans)
                     {
@@ -199,6 +229,14 @@ namespace Watt.Battery
                     }
 
                     // Observed but asleep / no fresh value: substitute the last-known reading.
+                    // On manual refresh, a device the plugin reports as disconnected is removed
+                    // from the cache instead of being shown again.
+                    if (removeDisconnected && reading.IsConnected == false)
+                    {
+                        LastKnownStore.Remove(reading.Id);
+                        continue;
+                    }
+
                     DateTime savedAt;
                     string cachedPluginId;
                     var cached = LastKnownStore.TryGet(reading.Id, out savedAt, out cachedPluginId);
@@ -212,6 +250,7 @@ namespace Watt.Battery
                         Address = string.IsNullOrWhiteSpace(reading.Address) ? cached.Address : reading.Address,
                         BatteryPercent = cached.BatteryPercent,
                         IsCharging = cached.IsCharging,
+                        IsConnected = reading.IsConnected,
                         SourceId = cached.SourceId ?? cachedPluginId ?? plugin.Id
                     };
                     candidates.Add(new Candidate { Device = device, Priority = plugin.Priority, IsFresh = false });
@@ -340,6 +379,8 @@ namespace Watt.Battery
                     existing.Kind = candidate.Device.Kind;
                 if (string.IsNullOrWhiteSpace(existing.Address) && !string.IsNullOrWhiteSpace(candidate.Device.Address))
                     existing.Address = candidate.Device.Address;
+                if (!existing.IsConnected.HasValue && candidate.Device.IsConnected.HasValue)
+                    existing.IsConnected = candidate.Device.IsConnected;
             }
 
             var devices = new List<PeripheralDevice>(merged.Count);

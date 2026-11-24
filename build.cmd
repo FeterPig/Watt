@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 pushd "%~dp0" >nul
 
-set "VERSION=2.2.0"
+set "VERSION=2.2.1"
 set "ROOT=%CD%"
 set "DIST=%ROOT%\dist"
 set "RELEASE=%DIST%\Watt-%VERSION%-win-x64"
@@ -35,25 +35,28 @@ echo [build] staging release folder: %RELEASE%
 if exist "%RELEASE%" rmdir /s /q "%RELEASE%"
 mkdir "%RELEASE%"
 if errorlevel 1 goto fail
-mkdir "%RELEASE%\plugins"
+set "PAYLOAD=%RELEASE%\app"
+mkdir "%PAYLOAD%"
+if errorlevel 1 goto fail
+mkdir "%PAYLOAD%\plugins"
 if errorlevel 1 goto fail
 
 set "APPBIN=%ROOT%\src\Watt\bin\Release\net48"
 set "SETUPBIN=%ROOT%\src\Watt.Setup\bin\Release\net48"
 
-copy /Y "%APPBIN%\Watt.exe" "%RELEASE%\" >nul
+copy /Y "%APPBIN%\Watt.exe" "%PAYLOAD%\" >nul
 if errorlevel 1 goto fail
-copy /Y "%APPBIN%\Watt.exe.config" "%RELEASE%\" >nul
+copy /Y "%APPBIN%\Watt.exe.config" "%PAYLOAD%\" >nul
 if errorlevel 1 goto fail
-copy /Y "%APPBIN%\Watt.Plugin.Contracts.dll" "%RELEASE%\" >nul
+copy /Y "%APPBIN%\Watt.Plugin.Contracts.dll" "%PAYLOAD%\" >nul
 if errorlevel 1 goto fail
-copy /Y "%APPBIN%\Watt.Plugin.Support.dll" "%RELEASE%\" >nul
+copy /Y "%APPBIN%\Watt.Plugin.Support.dll" "%PAYLOAD%\" >nul
 if errorlevel 1 goto fail
 copy /Y "%SETUPBIN%\Watt.Setup.exe" "%RELEASE%\" >nul
 if errorlevel 1 goto fail
 
 for /d %%D in ("%ROOT%\src\Watt.Plugins.*") do (
-    copy /Y "%%~fD\bin\Release\net48\%%~nxD.dll" "%RELEASE%\plugins\" >nul
+    copy /Y "%%~fD\bin\Release\net48\%%~nxD.dll" "%PAYLOAD%\plugins\" >nul
     if errorlevel 1 goto fail
 )
 

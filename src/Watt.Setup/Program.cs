@@ -108,7 +108,7 @@ namespace Watt.Setup
 
         private static void PrintBanner()
         {
-            Console.WriteLine("Watt.Setup 2.2.0 - per-user installer/uninstaller");
+            Console.WriteLine("Watt.Setup 2.2.1 - per-user installer/uninstaller");
             Console.WriteLine("No administrator rights are required.");
             Console.WriteLine();
         }
@@ -145,7 +145,16 @@ namespace Watt.Setup
                 }
             }
 
-            var sourceDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            // 2.2.1+ release layout: Watt.Setup.exe sits at the top level and the actual runtime
+            // payload is in app\ so users do not accidentally launch Watt.exe directly.
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            var sourceDir = Path.Combine(baseDir, "app");
+            if (!Directory.Exists(sourceDir))
+            {
+                throw new DirectoryNotFoundException(
+                    "Runtime payload folder not found: " + sourceDir +
+                    ". Start Watt.Setup.exe from the extracted release folder (the one containing app\\).");
+            }
             ValidatePayload(sourceDir);
 
             installDir = string.IsNullOrEmpty(installDir)
@@ -347,7 +356,7 @@ namespace Watt.Setup
                 if (!File.Exists(Path.Combine(sourceDir, file)))
                 {
                     throw new FileNotFoundException(
-                        "Runtime payload is incomplete: " + file +
+                        "Runtime payload is incomplete: app\\" + file +
                         ". Run build.cmd, then start Watt.Setup.exe from the release folder.");
                 }
             }
@@ -357,7 +366,7 @@ namespace Watt.Setup
                 Directory.GetFiles(plugins, "*.dll").Length == 0)
             {
                 throw new DirectoryNotFoundException(
-                    "Runtime payload is incomplete: plugins folder has no DLLs. " +
+                    "Runtime payload is incomplete: app\\plugins has no DLLs. " +
                     "Start Watt.Setup.exe from the built release folder.");
             }
         }

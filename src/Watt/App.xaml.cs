@@ -423,7 +423,7 @@ namespace Watt
             _panel.SetRefreshing(true);
             try
             {
-                var task = _battery.RefreshAsync(true);
+                var task = _battery.RefreshAsync(true, true);
                 if (task != null) await task.ConfigureAwait(true);
 
                 UpdateBatterySnapshot();

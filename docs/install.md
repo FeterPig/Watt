@@ -1,7 +1,7 @@
 # 构建、安装与卸载
 
-Watt 2.2.0 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
-`dist\Watt-2.2.0-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
+Watt 2.2.1 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
+`dist\Watt-2.2.1-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
 也不需要修改 PowerShell 执行策略。
 
 ## 构建要求
@@ -29,34 +29,37 @@ build.cmd
 4. 生成发行版目录：
 
    ```
-   dist\Watt-2.2.0-win-x64\
-     Watt.exe
-     Watt.exe.config
-     Watt.Plugin.Contracts.dll
-     Watt.Plugin.Support.dll
-     Watt.Setup.exe
-     plugins\
-       Watt.Plugins.Windows.dll
-       Watt.Plugins.BleGatt.dll
+   dist\Watt-2.2.1-win-x64\
+     Watt.Setup.exe              # 一级目录：安装/卸载程序
      README.md
      docs\
+     app\                        # 二级目录：主程序及附属文件
+       Watt.exe
+       Watt.exe.config
+       Watt.Plugin.Contracts.dll
+       Watt.Plugin.Support.dll
+       plugins\
+         Watt.Plugins.Windows.dll
+         Watt.Plugins.BleGatt.dll
    ```
 
-5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.2.0-win-x64.zip`。
+   运行时文件都在 `app\` 下，一级目录只有安装程序、README 和 docs；这样用户不会误双击主程序。
+
+5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.2.1-win-x64.zip`。
 
 构建失败时脚本返回非零退出码；没有单独的“只编译不打包”参数，需要时直接 `dotnet build`
 单个工程即可。
 
 ## 安装（普通用户）
 
-下载并解压发行版后，有两种方式。
+下载并解压发行版后，一级目录中有 `Watt.Setup.exe`、`README.md`、`docs\` 和主程序目录 `app\`。请通过安装程序操作，不要直接运行 `app\Watt.exe`。安装有两种方式。
 
 ### 方式一：双击 Watt.Setup.exe（推荐）
 
 双击发行版根目录的 `Watt.Setup.exe`，控制台会显示交互菜单：
 
 ```
-Watt.Setup 2.2.0 - per-user installer/uninstaller
+Watt.Setup 2.2.1 - per-user installer/uninstaller
 
   1. 安装 / Install
   2. 卸载 / Uninstall
@@ -167,7 +170,7 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 - **`dotnet` 找不到**：安装 .NET SDK 9，并确保 `dotnet` 在 PATH 中。
 - **构建提示找不到 `Windows.winmd`**：安装 Windows 10/11 SDK，或用
   `dotnet build ... -p:WinmdPath=...` 指定。
-- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.2.0-win-x64` 发行版目录运行
+- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.2.1-win-x64` 发行版目录运行
   `Watt.Setup.exe`，不要从源码目录运行。
 - **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
 - **托盘图标在二级托盘里**：Watt 会重试并重新注册图标；如果升级后 Explorer 完全没有生成
