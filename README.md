@@ -1,6 +1,6 @@
 # Watt — 外设电量悬浮窗
 
-当前版本：**2.1.0**
+当前版本：**2.2.0**
 
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
@@ -11,6 +11,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 - **开机自启**：安装时注册当前用户登录自启（`HKCU\...\Run`），无管理员权限。
 - **托盘常驻**：左键托盘图标切换悬浮窗；右键只有两项：`开机自启`、`退出 Watt`。图标会自动固定到**一级通知区域**（与输入法、网络、音量平级），不会藏进 `^` 溢出区。
 - **悬浮窗**：右下角浮层，随内容自适应高度；点击别处或按 `Esc` 关闭。
+- **手动刷新**：悬浮窗右上角有圆形刷新按钮，点击后重新扫描设备并更新电量；按钮旁会短暂显示「刷新中…」/「已刷新」反馈，不改变面板的其他布局。
 - **插件化电量来源**：每种读取方式都是独立插件 DLL，宿主并行调度、统一缓存与合并；默认内置 Windows 标准蓝牙与 BLE GATT 两种来源。未适配设备可按 [插件开发文档](docs/plugins.md) 写一个 DLL 放入 `plugins` 或 `%LOCALAPPDATA%\Watt\plugins`，无需改主程序。
 - **休眠保留**：外设休眠、暂时不响应或蓝牙耳机断开时，悬浮窗保留最后一次读到的电量并继续显示该设备；设备被拔除/取消配对后才移除；应用重启也会从本地缓存恢复。
 - **系统原生观感**：图标使用 Windows 11 自带的 Segoe Fluent Icons 线性图标；托盘图标为自绘黑色线稿（深色任务栏自动切换白色），透明背景。
@@ -30,7 +31,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 | 插件 Id | 优先级 | 超时 | 写设备 | 数据来源 |
 | --- | --- | --- | --- | --- |
 | `windows-aep` | 10 | 3000 ms | 否 | Windows 蓝牙 AEP 属性（`System.Devices.BatteryLife` / `BatteryPlusCharging`），并对经典蓝牙耳机回退读取 HFP 设备节点电量 |
-| `ble-gatt` | 20 | 6000 ms | 否 | 已连接 BLE 设备的标准 Battery Service（`0x180F / 0x2A19`） |
+| `ble-gatt` | 5 | 6000 ms | 否 | 已连接 BLE 设备的标准 Battery Service（`0x180F / 0x2A19`）；连接状态下 GATT 新读数优先于 Windows AEP 缓存 |
 
 优先级数字越小越优先；第三方插件建议使用 ≥ 60，避免覆盖内置来源。厂商私有协议（2.4G dongle、厂商 HID 协议、厂商查询帧等）默认不内置，需要时通过插件扩展。
 
@@ -153,7 +154,7 @@ build.cmd
 - 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt-2.1.0-win-x64\
+dist\Watt-2.2.0-win-x64\
 ├─ Watt.exe
 ├─ Watt.exe.config
 ├─ Watt.Plugin.Contracts.dll
@@ -166,10 +167,10 @@ dist\Watt-2.1.0-win-x64\
 └─ docs\
 ```
 
-构建完成后双击 `dist\Watt-2.1.0-win-x64\Watt.Setup.exe`，选择「1. 安装」：
+构建完成后双击 `dist\Watt-2.2.0-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
-cd dist\Watt-2.1.0-win-x64
+cd dist\Watt-2.2.0-win-x64
 Watt.Setup.exe
 ```
 
@@ -255,6 +256,7 @@ watt/
 
 - 目标框架 .NET Framework 4.8（Windows 11 自带），WPF + WinForms（仅用于 `NotifyIcon`），x64；主程序约 240 KB，另有插件 SDK DLL 与内置插件。
 - **插件架构**：`PluginHost` 从 `<安装目录>\plugins`、`%LOCALAPPDATA%\Watt\plugins` 和 `--plugin-dir` 加载 DLL；每个插件实现 `IBatteryPlugin.ReadAsync`，返回“观察到的设备 + 是否在线”，不直接写缓存。宿主负责并行调度、超时、按 Priority 合并去重、LastKnownStore 持久化，以及连续 3 次 `HardwarePresent=false` 后清理该插件的缓存设备。完整契约见 [docs/plugins.md](docs/plugins.md)。
+- **自动刷新**：`BatteryService` 每 60 秒扫描一次；已连接的 BLE 设备会直接读取 uncached GATT，并以 Priority 5 覆盖 Windows AEP 缓存（Priority 10），避免系统缓存值掩盖新电量。Windows AEP / 经典 HFP 是否更新取决于系统和设备；休眠设备按设计保留缓存，可用面板右上角的刷新按钮强制重扫。
 - WinRT 蓝牙 API 通过本地 `Windows.winmd` 直接引用；`WinRtAsync` 适配器把 `IAsyncOperation<T>` 转成 `Task<T>`，放在 `Watt.Plugin.Support` 供插件复用。
 - 经典蓝牙 HFP 节点电量通过 SetupAPI 读取 `DEVPKEY_Device_BatteryLevel`；第三方插件可以使用 `Watt.Plugin.Support` 中的 HID 封装实现自己的协议。
 - 图标：面板使用系统 `Segoe Fluent Icons`（与 Windows 11 设置页同源）；托盘图标由 `tools/IconGen` 矢量绘制并逐尺寸渲染，保证 16 px 下仍是清晰的黑色线稿。

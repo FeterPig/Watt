@@ -72,6 +72,7 @@ watt\tools\IconGen\bin\Release\net48\IconGen.exe all
 | `Bolt` | `U+E945` | LightningBolt | 20 px 下可读作闪电。`EA93`/`EBAB` 是带闪电的电池字形，对 11 px 充电标记来说细节过多。无需更换。 |
 | `Bluetooth` | `U+E702` | Bluetooth | 20 px 下干净清晰（经典蓝牙符文）。无需更换。 |
 | `Battery` | `U+E83F` | Battery10 | 通用满电池；`E850` 是 Battery0（空轮廓），`E85A` BatteryCharging0，`E996` BatteryUnknown。保留 `E83F` 作为规范“电池”字形；托盘/应用标记是自定义矢量，**不**使用此字形。无需更换。 |
+| `Refresh` | `U+E72C` | Refresh | 悬浮窗右上角的圆形手动刷新按钮，14 px；周围用 26 px 圆形透明底和极轻的 hover 底色，保持面板其他区域不变。 |
 
 被否决的候选：`E7E8` 是电源按钮字形（不是电池），`E83D` 渲染为通用实心形状，`E704` 是 InternetSharing，`E703` Connect 是设备配对字形。`E972/E975` 等也在接触表上检查过，都没有优于当前常量。
 
@@ -83,7 +84,7 @@ watt\tools\IconGen\bin\Release\net48\IconGen.exe all
 
 * `previews/glyphs-large.png` —— 42 个候选字形，48 px，带名称/分类。
 * `previews/glyphs-zoom-20px.png` —— 候选字形按面板实际尺寸（20 px，Ideal + 灰度抗锯齿）渲染，4 倍放大，覆盖两种面板表面。
-* `previews/glyphs-chosen-20px.png` —— 上述七个常量，实际 20 px + 3 倍放大，覆盖两种面板表面。
+* `previews/glyphs-chosen-20px.png` —— 上述设备/状态及刷新字形常量，实际 20 px + 3 倍放大，覆盖两种面板表面。
 * `previews/tray-mark-sizes.png` —— 最终托盘标记 16-128 px，在 `#F3F3F3` / `#1C1C1E` 上。
 * `previews/tray-taskbar-actual.png` —— 实际尺寸 16/20/24 px 图标在浅色/深色任务栏条上重复展示（预览未缩放，因此就是任务栏实际显示效果）。
 * `previews/tray-mark-magnified.png` —— 16/24/32 px ICO 位图的 6 倍最近邻放大。

@@ -1,7 +1,7 @@
 # 构建、安装与卸载
 
-Watt 2.1.0 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
-`dist\Watt-2.1.0-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
+Watt 2.2.0 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
+`dist\Watt-2.2.0-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
 也不需要修改 PowerShell 执行策略。
 
 ## 构建要求
@@ -29,7 +29,7 @@ build.cmd
 4. 生成发行版目录：
 
    ```
-   dist\Watt-2.1.0-win-x64\
+   dist\Watt-2.2.0-win-x64\
      Watt.exe
      Watt.exe.config
      Watt.Plugin.Contracts.dll
@@ -42,7 +42,7 @@ build.cmd
      docs\
    ```
 
-5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.1.0-win-x64.zip`。
+5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.2.0-win-x64.zip`。
 
 构建失败时脚本返回非零退出码；没有单独的“只编译不打包”参数，需要时直接 `dotnet build`
 单个工程即可。
@@ -56,7 +56,7 @@ build.cmd
 双击发行版根目录的 `Watt.Setup.exe`，控制台会显示交互菜单：
 
 ```
-Watt.Setup 2.1.0 - per-user installer/uninstaller
+Watt.Setup 2.2.0 - per-user installer/uninstaller
 
   1. 安装 / Install
   2. 卸载 / Uninstall
@@ -167,7 +167,7 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 - **`dotnet` 找不到**：安装 .NET SDK 9，并确保 `dotnet` 在 PATH 中。
 - **构建提示找不到 `Windows.winmd`**：安装 Windows 10/11 SDK，或用
   `dotnet build ... -p:WinmdPath=...` 指定。
-- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.1.0-win-x64` 发行版目录运行
+- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.2.0-win-x64` 发行版目录运行
   `Watt.Setup.exe`，不要从源码目录运行。
 - **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
 - **托盘图标在二级托盘里**：Watt 会重试并重新注册图标；如果升级后 Explorer 完全没有生成

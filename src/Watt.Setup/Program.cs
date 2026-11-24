@@ -108,7 +108,7 @@ namespace Watt.Setup
 
         private static void PrintBanner()
         {
-            Console.WriteLine("Watt.Setup 2.1.0 - per-user installer/uninstaller");
+            Console.WriteLine("Watt.Setup 2.2.0 - per-user installer/uninstaller");
             Console.WriteLine("No administrator rights are required.");
             Console.WriteLine();
         }

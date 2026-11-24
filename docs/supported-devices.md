@@ -7,7 +7,7 @@ Watt 默认只使用 Windows 与蓝牙标准提供的数据源，不读取任何
 | 插件 Id | 优先级 | 超时 | 写设备 | 数据来源 |
 | --- | --- | --- | --- | --- |
 | `windows-aep` | 10 | 3000 ms | 否 | Windows 蓝牙 AEP 属性（`System.Devices.BatteryLife` / `BatteryPlusCharging`），并对经典蓝牙耳机回退读取 HFP 设备节点电量 |
-| `ble-gatt` | 20 | 6000 ms | 否 | 已连接 BLE 设备的标准 Battery Service（`0x180F / 0x2A19`） |
+| `ble-gatt` | 5 | 6000 ms | 否 | 已连接 BLE 设备的标准 Battery Service（`0x180F / 0x2A19`）；GATT 新读数优先于 Windows AEP 缓存 |
 
 优先级数字越小越优先；第三方插件建议使用 ≥ 60。
 
@@ -33,7 +33,7 @@ DEVPKEY_Device_BatteryLevel
 ## BLE GATT
 
 - 只处理已配对的 BLE 设备；
-- 设备 AEP 已有电量时跳过，避免和 `windows-aep` 重复；
+- 已连接设备即使 AEP 已有电量也直接读取；GATT 新读数优先于 Windows AEP 缓存；
 - 设备未连接时跳过，不主动唤醒休眠设备；
 - 连接后读取标准 Battery Service `0x180F` / characteristic `0x2A19`，只接受 0–100。
 

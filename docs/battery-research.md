@@ -29,7 +29,7 @@ Windows 会把已配对蓝牙设备的电量暴露为设备属性：
 实现约束：
 
 - 只处理已配对的 BLE 设备；
-- 设备 AEP 已有电量时跳过，避免重复/覆盖；
+- 已连接设备即使 AEP 已有电量也直接读取；GATT 是实时读数，优先级高于 Windows AEP 缓存；
 - 设备 `IsConnected == false` 时跳过，不主动唤醒休眠设备；
 - 每一步 WinRT 异步调用都有超时，读取使用 `BluetoothCacheMode.Uncached`；
 - .NET Framework 4.8 目标机上没有可用的 `System.Runtime.WindowsRuntime`，因此

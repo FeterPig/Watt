@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.1.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.2.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.1.0-win-x64\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.2.0-win-x64\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -175,7 +175,7 @@ public interface IBatteryPlugin
 | `DisplayName` | 诊断/`--plugins` 显示名称。 |
 | `Description` | 一到两句说明。 |
 | `Version` | 插件版本字符串，例如 `1.0.0`。仅展示，不参与兼容判断。 |
-| `Priority` | 合并优先级，数字越小越强。内置插件使用 10（Windows AEP/HFP）和 20（BLE GATT）；第三方建议 ≥ 60。 |
+| `Priority` | 合并优先级，数字越小越强。内置插件使用 10（Windows AEP/HFP）和 5（BLE GATT）；第三方建议 ≥ 60。 |
 | `SuggestedTimeoutMs` | 一次扫描的软预算；宿主限制在 500–15000 ms，超时不会强杀插件线程。 |
 | `WritesToDevice` | 插件是否向设备发送报文（只读查询帧也算 `true`），只用于诊断展示。 |
 | `ReadAsync` | 执行一次扫描。**绝不抛异常**；必须尊重 `CancellationToken`；在预算内返回。 |
@@ -530,7 +530,7 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 | 插件 Id | 源工程 | Priority | 超时 | WritesToDevice | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `windows-aep` | `src/Watt.Plugins.Windows` | 10 | 3000 ms | `false` | Windows AEP 电池属性 + 经典蓝牙 HFP 节点电量 |
-| `ble-gatt` | `src/Watt.Plugins.BleGatt` | 20 | 6000 ms | `false` | 标准 BLE Battery Service `0x180F / 0x2A19` |
+| `ble-gatt` | `src/Watt.Plugins.BleGatt` | 5 | 6000 ms | `false` | 标准 BLE Battery Service `0x180F / 0x2A19`；连接的设备会直接读取，GATT 新读数优先于 Windows AEP 缓存 |
 
 优先级数字越小越强。第三方插件建议 ≥ 60；示例插件用 999。
 

@@ -174,6 +174,7 @@ namespace Watt
 
             _panel = new PanelView();
             _panel.SetDevices(new PeripheralDevice[0], true);
+            _panel.RefreshRequested += OnManualRefreshRequested;
             _window = new FloatingWindow(_panel);
             ApplyTheme();
 
@@ -408,6 +409,31 @@ namespace Watt
             {
                 _refreshing = false;
                 Trace("refresh failed " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Manual refresh from the panel button. It always waits for the scan to finish before
+        /// showing "已刷新" so the feedback reflects the new device snapshot, not just the click.
+        /// </summary>
+        private async void OnManualRefreshRequested(object sender, EventArgs e)
+        {
+            if (_panel == null || _battery == null) return;
+
+            _panel.SetRefreshing(true);
+            try
+            {
+                var task = _battery.RefreshAsync(true);
+                if (task != null) await task.ConfigureAwait(true);
+
+                UpdateBatterySnapshot();
+                _panel.ShowRefreshResult(true);
+                Trace("manual refresh completed");
+            }
+            catch (Exception ex)
+            {
+                _panel.ShowRefreshResult(false);
+                Trace("manual refresh failed " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 

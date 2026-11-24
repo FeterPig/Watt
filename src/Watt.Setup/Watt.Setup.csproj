@@ -5,8 +5,8 @@
     <LangVersion>7.3</LangVersion>
     <AssemblyName>Watt.Setup</AssemblyName>
     <RootNamespace>Watt.Setup</RootNamespace>
-    <Version>2.1.0</Version>
-    <FileVersion>2.1.0.0</FileVersion>
+    <Version>2.2.0</Version>
+    <FileVersion>2.2.0.0</FileVersion>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <PlatformTarget>AnyCPU</PlatformTarget>

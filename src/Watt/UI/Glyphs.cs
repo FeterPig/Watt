@@ -23,6 +23,7 @@ namespace Watt.UI
         public const string Bolt = "\uE945";       // LightningBolt (charging indicator)
         public const string Bluetooth = "\uE702";  // Bluetooth
         public const string Battery = "\uE83F";    // Battery10 (generic battery glyph)
+        public const string Refresh = "\uE72C";    // Refresh (manual-refresh button)
 
         public static string ForKind(DeviceKind kind)
         {

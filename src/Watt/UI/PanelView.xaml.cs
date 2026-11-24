@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Watt.Models;
 
 namespace Watt.UI
@@ -11,14 +12,24 @@ namespace Watt.UI
     public partial class PanelView : UserControl
     {
         private readonly ObservableCollection<DeviceRow> _rows = new ObservableCollection<DeviceRow>();
+        private readonly DispatcherTimer _feedbackTimer;
         private Theme _theme = Theme.Light;
 
         public PanelView()
         {
             InitializeComponent();
             DeviceList.ItemsSource = _rows;
+            _feedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+            _feedbackTimer.Tick += delegate
+            {
+                _feedbackTimer.Stop();
+                RefreshFeedback.Visibility = Visibility.Collapsed;
+            };
             ApplyTheme(Theme.Light);
         }
+
+        /// <summary>Raised when the user clicks the circular refresh button.</summary>
+        public event EventHandler RefreshRequested;
 
         /// <summary>Outer window width in DIPs (card width + shadow breathing room).</summary>
         public const double PanelWidth = 288;
@@ -43,6 +54,12 @@ namespace Watt.UI
             Card.Background = theme.Surface;
             Card.BorderBrush = theme.Border;
             EmptyText.Foreground = theme.TextSecondary;
+            RefreshFeedback.Foreground = theme.TextSecondary;
+            RefreshButton.Foreground = theme.TextSecondary;
+            Resources["RefreshHoverBrush"] = theme.Skeleton;
+            Resources["RefreshPressedBrush"] = theme.IsDark
+                ? new SolidColorBrush(Color.FromRgb(48, 48, 54))
+                : new SolidColorBrush(Color.FromRgb(242, 242, 245));
             SkeletonBrush = theme.Skeleton;
             foreach (var row in _rows)
             {
@@ -83,6 +100,34 @@ namespace Watt.UI
             DeviceList.Visibility = hasDevices ? Visibility.Visible : Visibility.Collapsed;
             LoadingHost.Visibility = showLoading ? Visibility.Visible : Visibility.Collapsed;
             EmptyText.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>Disables the refresh button and shows transient "refreshing" feedback.</summary>
+        public void SetRefreshing(bool refreshing)
+        {
+            RefreshButton.IsEnabled = !refreshing;
+            if (refreshing) ShowFeedback("刷新中…", false);
+        }
+
+        /// <summary>Re-enables the button and shows a short result message.</summary>
+        public void ShowRefreshResult(bool success)
+        {
+            RefreshButton.IsEnabled = true;
+            ShowFeedback(success ? "已刷新" : "刷新失败", true);
+        }
+
+        private void ShowFeedback(string text, bool autoHide)
+        {
+            _feedbackTimer.Stop();
+            RefreshFeedback.Text = text;
+            RefreshFeedback.Visibility = Visibility.Visible;
+            if (autoHide) _feedbackTimer.Start();
+        }
+
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            var handler = RefreshRequested;
+            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         private void RebuildRows()

@@ -14,7 +14,9 @@ namespace Watt.Plugins.BleGatt
 {
     /// <summary>
     /// BLE GATT plugin: reads the standard Battery Service (service 0x180F, characteristic 0x2A19)
-    /// for paired BLE peripherals that Windows does not already report a level for.
+    /// for paired, connected BLE peripherals. A fresh GATT value is authoritative even when the
+    /// Windows AEP also carries a (possibly stale) value; the higher priority lets the host prefer
+    /// it for connected devices.
     ///
     /// The GATT calls are capped with independent timeouts because a paired-but-out-of-range
     /// device makes them hang for many seconds. The plugin only reads connected devices (a GATT
@@ -46,9 +48,7 @@ namespace Watt.Plugins.BleGatt
         private static readonly string[] RequestedProperties =
         {
             AepAddress,
-            AepIsConnected,
-            AepBattery.PropBatteryLife,
-            AepBattery.PropBatteryPlusCharging
+            AepIsConnected
         };
 
         public override string Id
@@ -66,7 +66,7 @@ namespace Watt.Plugins.BleGatt
             get
             {
                 return "Reads the standard BLE Battery Service (0x180F/0x2A19) from connected paired "
-                    + "devices that Windows does not already report a level for.";
+                    + "devices; a fresh GATT value takes precedence over a cached Windows AEP value.";
             }
         }
 
@@ -77,7 +77,9 @@ namespace Watt.Plugins.BleGatt
 
         public override int Priority
         {
-            get { return 20; }
+            // GATT is a direct, uncached read from a connected device. Priority 5 lets it override
+            // the Windows AEP plugin (10), whose shell property can lag behind the real level.
+            get { return 5; }
         }
 
         public override int SuggestedTimeoutMs
@@ -133,9 +135,6 @@ namespace Watt.Plugins.BleGatt
                         var address = DeviceClassifier.NormalizeAddress(
                             ProviderUtil.TryGetString(properties, AepAddress));
                         var name = information.Name != null ? information.Name.Trim() : string.Empty;
-
-                        // Devices already covered by the Windows AEP plugin are not woken up here.
-                        if (AepBattery.TryRead(properties)) continue;
 
                         // Only connected devices: opening GATT to a sleeping peripheral would wake
                         // it for nothing, and the host already shows its last-known value.
