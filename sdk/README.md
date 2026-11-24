@@ -54,7 +54,7 @@ type "%TEMP%\selftest.json"
 示例是假数据，验证后从 `plugins` 目录删除对应 DLL 并重启 Watt。
 
 > 如果从源码运行而不是安装版：先运行 `.\build.cmd`，再用
-> `.\dist\Watt-2.2.1-win-x64\app\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
+> `.\dist\Watt-2.2.2-win-x64\app\Watt.exe --selftest ...` 验证；`--plugin-dir` 可直接指向示例插件输出目录。
 
 ## 适配新设备的流程
 
@@ -100,6 +100,9 @@ Watt 升级导致契约版本变化时，重新用新版安装目录的 DLL 编�
 
 - `BatteryPercent = null`：观察到设备但当前没有新读数（休眠）→ 宿主用最后一次缓存值保留这一行；
 - `PluginReadResult.Absent()`：传输不存在（接收器拔出/无蓝牙）→ 宿主连续 3 次后清理该插件缓存；
+- `BatteryPercent = null` 时若设备仍有连接，建议同时设置 `PeripheralDevice.IsConnected = true`；
+  设备明确不响应/离线时设为 `false`。手动刷新只会清理明确 `false` 的缓存行，旧插件的 `null`
+  会保留以兼容。
 - 插件**不要**自己持久化/删除缓存，宿主统一处理；
 - 不要抛异常；一定在 `SuggestedTimeoutMs` 内返回；超时只会取消等待，不会强杀线程；
 - 只读优先；必须发查询帧时只发文档化的只读帧，并限制频率，避免与厂商软件冲突；
@@ -117,5 +120,5 @@ Watt 升级导致契约版本变化时，重新用新版安装目录的 DLL 编�
 
 ## 契约版本
 
-当前 Watt 2.2.1，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
+当前 Watt 2.2.2，插件契约 1.0。`Watt.Plugin.Contracts` 的公开 API 变化会提升契约版本；
 插件应使用与目标 Watt 版本匹配的 Contracts/Support DLL 编译。

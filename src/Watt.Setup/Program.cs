@@ -108,7 +108,7 @@ namespace Watt.Setup
 
         private static void PrintBanner()
         {
-            Console.WriteLine("Watt.Setup 2.2.1 - per-user installer/uninstaller");
+            Console.WriteLine("Watt.Setup 2.2.2 - per-user installer/uninstaller");
             Console.WriteLine("No administrator rights are required.");
             Console.WriteLine();
         }
@@ -145,7 +145,7 @@ namespace Watt.Setup
                 }
             }
 
-            // 2.2.1+ release layout: Watt.Setup.exe sits at the top level and the actual runtime
+            // 2.2.2+ release layout: Watt.Setup.exe sits at the top level and the actual runtime
             // payload is in app\ so users do not accidentally launch Watt.exe directly.
             var baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             var sourceDir = Path.Combine(baseDir, "app");
@@ -175,13 +175,10 @@ namespace Watt.Setup
             // Keep the installation directory itself: Explorer associates the notification-area
             // settings entry with this path, and deleting the folder during an in-place upgrade
             // can make Explorer forget/park the icon in the overflow. Overwrite runtime files in
-            // place and replace only the plugins folder.
+            // place and copy the shipped plugins over existing ones.
             Directory.CreateDirectory(installDir);
-            var existingPlugins = Path.Combine(installDir, "plugins");
-            if (Directory.Exists(existingPlugins))
-            {
-                Directory.Delete(existingPlugins, true);
-            }
+            var targetPlugins = Path.Combine(installDir, "plugins");
+            Directory.CreateDirectory(targetPlugins);
 
             CopyFile(sourceDir, installDir, "Watt.exe");
             CopyFileIfExists(sourceDir, installDir, "Watt.exe.config");
@@ -189,7 +186,8 @@ namespace Watt.Setup
             CopyFile(sourceDir, installDir, "Watt.Plugin.Support.dll");
 
             var sourcePlugins = Path.Combine(sourceDir, "plugins");
-            var targetPlugins = Path.Combine(installDir, "plugins");
+            // Do not delete targetPlugins: users may keep their own private plugin DLLs there.
+            // CopyDirectory overwrites the shipped plugin names and leaves every extra DLL alone.
             CopyDirectory(sourcePlugins, targetPlugins);
 
             var installedExe = Path.Combine(installDir, "Watt.exe");

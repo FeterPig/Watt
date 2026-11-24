@@ -428,7 +428,7 @@ namespace Watt
 
                 UpdateBatterySnapshot();
                 _panel.ShowRefreshResult(true);
-                Trace("manual refresh completed");
+                Trace("manual refresh completed: " + _battery.Devices.Count + " device(s)");
             }
             catch (Exception ex)
             {

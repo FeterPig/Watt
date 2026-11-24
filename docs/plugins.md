@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.2.1，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.2.2，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.2.1-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.2.2-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -199,6 +199,10 @@ public abstract class BatteryPluginBase : IBatteryPlugin
     protected static PeripheralDevice Device(
         string id, string name, DeviceKind kind, int? percent,
         bool charging = false, string address = null);
+
+    protected static PeripheralDevice Device(
+        string id, string name, DeviceKind kind, int? percent,
+        bool charging, string address, bool? connected);
 }
 ```
 
@@ -249,7 +253,7 @@ public interface IPluginLogger
 | `Kind` | `Keyboard` / `Mouse` / `Headphone` / `Other`，决定图标。 |
 | `BatteryPercent` | 0–100；设备在但没有新读数时填 `null`（宿主会补缓存）。 |
 | `IsCharging` | 设备未上报充电状态时填 `false`。 |
-| `IsConnected` | 当前传输连接状态：`true` 已连接、`false` 已配对但断开/休眠、`null` 未知。手动刷新会移除 `IsConnected == false` 的缓存设备行；自动刷新仍保留休眠设备的 last-known 值。 |
+| `IsConnected` | 当前传输连接状态：`true` 已连接、`false` 已配对但断开/休眠、`null` 未知。手动刷新会移除插件**明确报告为 `false`** 的缓存设备行；`null` 会保留（兼容未实现该字段的旧插件），自动刷新始终保留休眠设备的 last-known 值。 |
 | `SourceId` | 不用填；宿主对有电量的观测统一覆写为插件 `Id`。 |
 | `Address` | 只有真实 48 位蓝牙 MAC 才填，格式 `aa:bb:cc:dd:ee:ff`；其他传输填 `null`，不要编造。 |
 
@@ -304,15 +308,36 @@ return new PeripheralDevice
 - **手动刷新**会立即删除该插件名下的缓存设备并重新加载列表。
 
 手动刷新还会移除插件明确报告 `IsConnected == false` 的缓存设备行；自动刷新仍保留
-`IsConnected == true` 但暂时无读数的休眠设备。
+`IsConnected == true` 但暂时无读数的休眠设备。`IsConnected` 为 `null` 的旧插件保持原缓存行为，
+以免升级后误删仍在使用的自用插件设备。
 
-### 6.3 超时/异常
+### 6.3 连接状态与手动刷新
+
+`PeripheralDevice.IsConnected` 是当前契约中**新插件应尽量提供**的字段：
+
+- `true`：本轮确认设备可访问/已连接（例如 GATT 读取成功、HID 查询收到响应）；
+- `false`：传输层存在，但设备当前不可达/休眠/未响应（例如接收器在、设备不应答）；
+- `null`：无法判断；旧插件不设置时即为 `null`。
+
+宿主的行为：
+
+- 自动刷新（60 秒扫描）：无论 `IsConnected` 为何，`null` 电量都沿用 last-known，休眠设备保持可见；
+- 手动刷新（面板按钮）：先等待当前扫描结束，再重新扫描并**重新加载整个列表**；
+  - `IsConnected == false` 的缓存设备立即从列表/缓存移除；
+  - `IsConnected == null` 的旧插件设备保留，避免误删；
+  - 新观察到且带电量（或缓存）的设备会加入列表。
+
+因此，新写 2.4G/私有协议插件时，建议在“收到新读数”时返回 `connected: true`，在“接口存在但
+设备不响应”时返回 `connected: false`；不要为了省事把所有设备都标成 `true`，否则手动刷新
+无法清理真正离线的缓存设备。
+
+### 6.4 超时/异常
 
 - `ReadAsync` 超过 `SuggestedTimeoutMs`：宿主取消等待，**保留**该插件此前的缓存行，不计入 absent；
 - `ReadAsync` 抛异常：宿主捕获并记录日志，同样保留缓存行；
 - 插件线程不会因超时被强制终止，避免死循环、无超时 I/O。
 
-### 6.4 合并规则
+### 6.5 合并规则
 
 多个插件可能观察到同一台设备：
 
@@ -340,6 +365,7 @@ return new PeripheralDevice
 5. 实现 `IBatteryPlugin` / `BatteryPluginBase`，约定：
    - `Id` 稳定唯一；设备 `Id` 稳定；
    - 传输层不存在 → `Absent()`；传输层存在但设备休眠 → `Observed(percent: null)`；
+   - 设备可访问/查询成功时设置 `IsConnected = true`，设备不响应时设置 `false`；
    - 只读优先；必须发查询帧时只发文档化的只读帧，限制频率，并在 `WritesToDevice` 中返回 `true`；
    - 不自己持久化/删除缓存；
 6. 构建后把 DLL 放进 `%LOCALAPPDATA%\Watt\plugins`，重启 Watt，用 `--plugins` / `--selftest` / `--diagnose` 验证；
@@ -378,7 +404,10 @@ public sealed class MyPlugin : BatteryPluginBase
                 id: "vendor:1234:5678",
                 name: "Vendor Device",
                 kind: DeviceKind.Keyboard,
-                percent: 80);
+                percent: 80,
+                charging: false,
+                address: null,
+                connected: true);
 
             return Task.FromResult(PluginReadResult.Observed(device));
         }

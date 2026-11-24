@@ -150,6 +150,11 @@ namespace Watt.Battery
                         : "null")
                     .Append(", ");
                 builder.Append("\"charging\": ").Append(device.IsCharging ? "true" : "false").Append(", ");
+                builder.Append("\"connected\": ")
+                    .Append(device.IsConnected.HasValue
+                        ? (device.IsConnected.Value ? "true" : "false")
+                        : "null")
+                    .Append(", ");
                 builder.Append("\"source\": ").Append(JsonString(device.SourceId)).Append(", ");
                 builder.Append("\"address\": ")
                     .Append(device.Address == null ? "null" : JsonString(device.Address));

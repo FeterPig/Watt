@@ -229,8 +229,9 @@ namespace Watt.Battery
                     }
 
                     // Observed but asleep / no fresh value: substitute the last-known reading.
-                    // On manual refresh, a device the plugin reports as disconnected is removed
-                    // from the cache instead of being shown again.
+                    // On manual refresh, only a device the plugin explicitly reports as
+                    // disconnected is removed; unknown connection state (e.g. older third-party
+                    // plugins that do not set IsConnected) keeps its cached row.
                     if (removeDisconnected && reading.IsConnected == false)
                     {
                         LastKnownStore.Remove(reading.Id);

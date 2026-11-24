@@ -72,7 +72,10 @@ namespace Watt.Samples
                 id: "sample:keyboard-1",
                 name: "Sample Keyboard",
                 kind: DeviceKind.Keyboard,
-                percent: 42);
+                percent: 42,
+                charging: false,
+                address: null,
+                connected: true);
 
             return Task.FromResult(PluginReadResult.Observed(fakeKeyboard));
         }

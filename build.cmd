@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 pushd "%~dp0" >nul
 
-set "VERSION=2.2.1"
+set "VERSION=2.2.2"
 set "ROOT=%CD%"
 set "DIST=%ROOT%\dist"
 set "RELEASE=%DIST%\Watt-%VERSION%-win-x64"

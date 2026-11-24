@@ -84,7 +84,14 @@ namespace Watt.Plugins
 
         /// <summary>Helper for plugins: create a reading with the fields the panel needs.</summary>
         protected static PeripheralDevice Device(string id, string name, DeviceKind kind, int? percent,
-            bool charging = false, string address = null, bool? connected = null)
+            bool charging = false, string address = null)
+        {
+            return Device(id, name, kind, percent, charging, address, null);
+        }
+
+        /// <summary>Overload for plugins that also know the current connection state.</summary>
+        protected static PeripheralDevice Device(string id, string name, DeviceKind kind, int? percent,
+            bool charging, string address, bool? connected)
         {
             return new PeripheralDevice
             {
