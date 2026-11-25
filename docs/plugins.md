@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.2.5，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.2.6，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.2.5-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.2.6-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -330,6 +330,11 @@ return new PeripheralDevice
 因此，新写 2.4G/私有协议插件时，建议在“收到新读数”时返回 `connected: true`，在“接口存在但
 设备不响应”时返回 `connected: false`；不要为了省事把所有设备都标成 `true`，否则手动刷新
 无法清理真正离线的缓存设备。
+
+> **被动监听型插件的特例**：如果插件只是监听 HID/蓝牙输入报文，本轮没收到报文并不等于
+> 设备已断开。这种情况必须返回 `IsConnected = null`，**不能返回 `false`**；`false` 会被手动
+> 刷新视为明确断开并清理缓存，导致设备行在每次刷新时出现/消失。只有能确认设备已断开时
+> 才返回 `false`。
 
 ### 6.4 超时/异常
 

@@ -214,8 +214,28 @@ namespace Watt.Plugins.BleGatt
         private static async Task<PeripheralDevice> TryReadBatteryLevelAsync(string deviceId, string address,
             string name, CancellationToken cancellationToken)
         {
+            // Devices that exposed the broken "increment on every read" characteristic must be
+            // read from the Windows GATT cache (what Settings shows), not by forcing a new read.
+            // The cache value is the last value Windows received on connect/notification and does
+            // not advance the firmware read counter.
+            var guardKey = address ?? deviceId;
+            if (BleBatteryGuard.IsQuirked(guardKey))
+            {
+                var cached = await TryReadBatteryLevelAsync(deviceId, address, name, cancellationToken, true)
+                    .ConfigureAwait(false);
+                if (cached != null) return cached;
+            }
+
+            return await TryReadBatteryLevelAsync(deviceId, address, name, cancellationToken, false)
+                .ConfigureAwait(false);
+        }
+
+        private static async Task<PeripheralDevice> TryReadBatteryLevelAsync(string deviceId, string address,
+            string name, CancellationToken cancellationToken, bool useCached)
+        {
             if (string.IsNullOrEmpty(deviceId)) return null;
 
+            var cacheMode = useCached ? BluetoothCacheMode.Cached : BluetoothCacheMode.Uncached;
             BluetoothLEDevice bleDevice = null;
             try
             {
@@ -230,7 +250,7 @@ namespace Watt.Plugins.BleGatt
 
                 var servicesResult = await ProviderUtil.AwaitOrNullAsync(
                     WinRtAsync.AsTask(bleDevice.GetGattServicesForUuidAsync(BatteryServiceUuid,
-                        BluetoothCacheMode.Uncached)),
+                        cacheMode)),
                     ServiceTimeoutMs).ConfigureAwait(false);
                 if (servicesResult == null || servicesResult.Status != GattCommunicationStatus.Success)
                     return null;
@@ -245,7 +265,7 @@ namespace Watt.Plugins.BleGatt
                     var service = services[i];
                     try
                     {
-                        var level = await TryReadCharacteristicAsync(service, cancellationToken)
+                        var level = await TryReadCharacteristicAsync(service, cancellationToken, cacheMode)
                             .ConfigureAwait(false);
                         if (level.HasValue)
                         {
@@ -258,11 +278,15 @@ namespace Watt.Plugins.BleGatt
                             if (effectiveAddress == null && bleDevice.BluetoothAddress != 0)
                                 effectiveAddress = ProviderUtil.FormatBluetoothAddress(bleDevice.BluetoothAddress);
 
+                            var guardKey = effectiveAddress ?? deviceId;
+                            var effectiveLevel = BleBatteryGuard.NormalizeOrIgnore(guardKey, level.Value);
+                            if (!effectiveLevel.HasValue) continue;
+
                             return Device(
                                 DeviceClassifier.BuildId(effectiveAddress, normalizedName, deviceId),
                                 normalizedName,
                                 DeviceClassifier.Classify(normalizedName, null, null),
-                                DeviceClassifier.ClampPercent(level.Value),
+                                DeviceClassifier.ClampPercent(effectiveLevel.Value),
                                 false,
                                 effectiveAddress,
                                 true);
@@ -304,13 +328,13 @@ namespace Watt.Plugins.BleGatt
         }
 
         private static async Task<int?> TryReadCharacteristicAsync(GattDeviceService service,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, BluetoothCacheMode cacheMode)
         {
             try
             {
                 var characteristicsResult = await ProviderUtil.AwaitOrNullAsync(
                     WinRtAsync.AsTask(service.GetCharacteristicsForUuidAsync(BatteryLevelCharacteristicUuid,
-                        BluetoothCacheMode.Uncached)),
+                        cacheMode)),
                     CharacteristicTimeoutMs).ConfigureAwait(false);
                 if (characteristicsResult == null ||
                     characteristicsResult.Status != GattCommunicationStatus.Success)
@@ -327,7 +351,7 @@ namespace Watt.Plugins.BleGatt
                     try
                     {
                         var readResult = await ProviderUtil.AwaitOrNullAsync(
-                            WinRtAsync.AsTask(characteristic.ReadValueAsync(BluetoothCacheMode.Uncached)),
+                            WinRtAsync.AsTask(characteristic.ReadValueAsync(cacheMode)),
                             ReadTimeoutMs).ConfigureAwait(false);
                         if (readResult == null || readResult.Status != GattCommunicationStatus.Success ||
                             readResult.Value == null)
@@ -339,7 +363,6 @@ namespace Watt.Plugins.BleGatt
                             {
                                 if (reader.UnconsumedBufferLength < 1) continue;
                                 var level = reader.ReadByte();
-                                if (level > 100) continue; // reserved / bogus value
                                 return level;
                             }
                         }

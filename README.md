@@ -1,6 +1,6 @@
 # Watt — 外设电量悬浮窗
 
-当前版本：**2.2.5**
+当前版本：**2.2.6**
 
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
@@ -13,6 +13,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 - **悬浮窗**：右下角浮层，随内容自适应高度；点击别处或按 `Esc` 关闭。
 - **手动刷新**：悬浮窗右上角有圆形刷新按钮，点击后重新扫描设备并重新加载当前设备列表；插件明确报告为未连接的缓存设备会从列表中清除，未实现连接状态的旧插件保持原缓存行为。按钮旁会短暂显示「刷新中…」/「已刷新」反馈。
 - **设备管理**：左上角铅笔按钮进入改名模式，设备名变成可编辑文本框，回车或失焦保存；每行末尾的叉号可把该设备从面板移除。改名和隐藏都会持久化到 `%LOCALAPPDATA%\Watt\devices.json`，重启后仍生效。
+- **BLE 计数保护**：部分蓝牙设备把 Battery Level 特征实现成“每次读取 +1”的计数器（已确认 EWEADN X23 Pro）；BLE 插件会识别连续递增，对这类设备优先读取 Windows GATT 缓存（与系统设置页一致），缓存不可用时再回退并用识别前的基线兜底。状态文件为 `%LOCALAPPDATA%\Watt\ble-battery-guard.txt`，删除后可重新学习。
 - **插件化电量来源**：每种读取方式都是独立插件 DLL，宿主并行调度、统一缓存与合并；默认内置 Windows 标准蓝牙与 BLE GATT 两种来源。未适配设备可按 [插件开发文档](docs/plugins.md) 写一个 DLL 放入 `plugins` 或 `%LOCALAPPDATA%\Watt\plugins`，无需改主程序。
 - **休眠保留**：外设休眠、暂时不响应或蓝牙耳机断开时，悬浮窗保留最后一次读到的电量并继续显示该设备；设备被拔除/取消配对后才移除；应用重启也会从本地缓存恢复。
 - **系统原生观感**：图标使用 Windows 11 自带的 Segoe Fluent Icons 线性图标；托盘图标为自绘黑色线稿（深色任务栏自动切换白色），透明背景。
@@ -151,11 +152,11 @@ build.cmd
 运行后会提示输入本次发布版本，例如：
 
 ```text
-[build] Enter the release version, for example 2.2.5:
+[build] Enter the release version, for example 2.2.6:
 Version: 
 ```
 
-版本号只用于本次构建，不写死在 `build.cmd` 中；也可以非交互执行 `build.cmd 2.2.5`。输入的版本会同时写入主程序、安装器和发行目录/zip 名称。
+版本号只用于本次构建，不写死在 `build.cmd` 中；也可以非交互执行 `build.cmd 2.2.6`。输入的版本会同时写入主程序、安装器和发行目录/zip 名称。
 
 `build.cmd` 会依次构建：
 
@@ -166,7 +167,7 @@ Version:
 - 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt-2.2.5-win-x64\
+dist\Watt-2.2.6-win-x64\
 ├─ Watt.Setup.exe              # 一级目录：安装/卸载程序，避免误操作
 ├─ README.md
 ├─ docs\
@@ -180,10 +181,10 @@ dist\Watt-2.2.5-win-x64\
       └─ Watt.Plugins.BleGatt.dll
 ```
 
-构建完成后双击 `dist\Watt-2.2.5-win-x64\Watt.Setup.exe`，选择「1. 安装」：
+构建完成后双击 `dist\Watt-2.2.6-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
-cd dist\Watt-2.2.5-win-x64
+cd dist\Watt-2.2.6-win-x64
 Watt.Setup.exe
 ```
 

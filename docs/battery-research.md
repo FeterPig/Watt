@@ -35,6 +35,48 @@ Windows 会把已配对蓝牙设备的电量暴露为设备属性：
 - .NET Framework 4.8 目标机上没有可用的 `System.Runtime.WindowsRuntime`，因此
   `Watt.Plugin.Support/WinRtAsync.cs` 提供 `IAsyncOperation<T> → Task<T>` 适配器。
 
+### 2.1 BLE Battery Level 自增计数器
+
+已确认某些 BLE 外设的 `0x2A19` 特征不是稳定电量，而是**每次读取返回上一次值 +1**。
+例如 `EWEADN X23 Pro`（address `c9:8c:17:34:19:f8`，model `47-BLE-1.0`）连续读取：
+
+```text
+53, 54, 55, 56, 57, 58, ...
+```
+
+特点：
+
+- 读取间隔无关，每读一次就上涨；
+- 会超过 100（例如 117）；
+- 设备不充电时也一样；
+- CCCD Notify 不提供有效通知，无法用通知绕过。
+
+`ble-gatt` 插件用 `BleBatteryGuard` 处理这类设备：
+
+- 连续出现两次 `+1` 时识别为计数器；
+- 锁定识别前的第一个电量为基线，之后不采用继续上涨的值；
+- 出现更低的读数时更新基线（按真实放电处理）；
+- 对已识别的设备优先读取 **Windows GATT 缓存**（`BluetoothCacheMode.Cached`），
+  这与系统设置页显示的是同一份缓存值，不会触发设备的读取计数器；
+- 缓存不可用时才回退到 Uncached，并由 guard 兜底；
+- 状态保存在 `%LOCALAPPDATA%\Watt\ble-battery-guard.txt`，重启后继续生效；
+- 移除该文件可让 Watt 重新学习（设备重新连接、实际电量变化后可重置基线）。
+
+这不是 Windows AEP/HFP 的问题；同一个鼠标的 `ryunix-kyupro` 2.4G 读数保持稳定，BLE 行才是异常来源。
+
+### 2.2 被动监听型 2.4G 插件的 `IsConnected`
+
+`ryunix-kyupro` 通过 2 秒监听窗口捕获 X23 Pro 的 vendor 报文：
+
+- 捕获到有效报文：返回 `IsConnected = true`；
+- 接收器存在但本轮没捕获到报文（鼠标休眠/未活动）：返回 `BatteryPercent = null`、
+  `IsConnected = null`；
+- 接收器不存在：返回 `Absent()`。
+
+这里不能用 `IsConnected = false` 表示“没收到报文”。宿主的手动刷新会清理明确
+`IsConnected == false` 的缓存；如果被动插件把空闲误报成断开，设备行就会在每次手动刷新时
+交替出现/消失。`false` 仅保留给能够确认设备已断开的主动查询型插件。
+
 ## 3. 经典蓝牙 HFP 节点电量
 
 有些经典蓝牙耳机只在 HFP 网关设备节点上暴露电量。方法是通过 SetupAPI 枚举 `BTHENUM\*`
