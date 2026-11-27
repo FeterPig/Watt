@@ -1,6 +1,6 @@
 # Watt — 外设电量悬浮窗
 
-当前版本：**2.2.6**
+当前版本：**2.3.0**
 
 Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出一块干净的悬浮窗，显示当前已连接外设（键盘、鼠标、蓝牙耳机等）的电量。开机自启，常驻托盘，不占任务栏。
 
@@ -9,10 +9,10 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 ## 功能
 
 - **开机自启**：安装时注册当前用户登录自启（`HKCU\...\Run`），无管理员权限。
-- **托盘常驻**：左键托盘图标切换悬浮窗；右键有三项：`打开插件目录`、`开机自启`、`退出 Watt`。图标会自动固定到**一级通知区域**（与输入法、网络、音量平级），不会藏进 `^` 溢出区。
-- **悬浮窗**：右下角浮层，随内容自适应高度；点击别处或按 `Esc` 关闭。
+- **托盘常驻**：左键托盘图标切换悬浮窗；右键有四项：`打开插件目录`、`开机自启`、`恢复已隐藏设备`（仅在有隐藏设备时可用）、`退出 Watt`。图标会自动固定到**一级通知区域**（与输入法、网络、音量平级），不会藏进 `^` 溢出区。
+- **悬浮窗**：右下角浮层，随内容自适应高度；设备较多时列表内部滚动，不会把面板顶出屏幕；点击别处或按 `Esc` 关闭。
 - **手动刷新**：悬浮窗右上角有圆形刷新按钮，点击后重新扫描设备并重新加载当前设备列表；插件明确报告为未连接的缓存设备会从列表中清除，未实现连接状态的旧插件保持原缓存行为。按钮旁会短暂显示「刷新中…」/「已刷新」反馈。
-- **设备管理**：左上角铅笔按钮进入改名模式，设备名变成可编辑文本框，回车或失焦保存；每行末尾的叉号可把该设备从面板移除。改名和隐藏都会持久化到 `%LOCALAPPDATA%\Watt\devices.json`，重启后仍生效。
+- **设备管理**：左上角铅笔按钮进入改名模式，设备名变成可编辑文本框，回车或失焦保存；每行末尾的叉号可把该设备从面板移除。改名和隐藏都会持久化到 `%LOCALAPPDATA%\Watt\devices.json`，重启后仍生效。误删的设备可从托盘右键菜单的 `恢复已隐藏设备` 找回。
 - **BLE 计数保护**：部分蓝牙设备把 Battery Level 特征实现成“每次读取 +1”的计数器（已确认 EWEADN X23 Pro）；BLE 插件会识别连续递增，对这类设备优先读取 Windows GATT 缓存（与系统设置页一致），缓存不可用时再回退并用识别前的基线兜底。状态文件为 `%LOCALAPPDATA%\Watt\ble-battery-guard.txt`，删除后可重新学习。
 - **插件化电量来源**：每种读取方式都是独立插件 DLL，宿主并行调度、统一缓存与合并；默认内置 Windows 标准蓝牙与 BLE GATT 两种来源。未适配设备可按 [插件开发文档](docs/plugins.md) 写一个 DLL 放入 `plugins` 或 `%LOCALAPPDATA%\Watt\plugins`，无需改主程序。
 - **休眠保留**：外设休眠、暂时不响应或蓝牙耳机断开时，悬浮窗保留最后一次读到的电量并继续显示该设备；设备被拔除/取消配对后才移除；应用重启也会从本地缓存恢复。
@@ -90,7 +90,7 @@ Windows 11 托盘小工具：左键点击托盘图标，在屏幕右下角弹出
 | --- | --- |
 | `%LOCALAPPDATA%\Watt\last-known.json` | 最后一次成功读到的电量，保留 30 天；应用重启后仍可显示休眠设备 |
 | `%LOCALAPPDATA%\Watt\plugin-data\<plugin-id>\` | 插件自己的可写数据目录（可选） |
-| `<Watt 安装目录>\watt-startup.log` | 运行日志、插件加载/错误日志 |
+| `<Watt 安装目录>\watt-startup.log` | 运行日志、插件加载/错误日志；超过 1 MB 时轮换为 `watt-startup.log.1` |
 
 ## 安装
 
@@ -138,6 +138,8 @@ Watt.Setup.exe uninstall
 
 会停止进程、删除自启项、删除开始菜单快捷方式、`%LOCALAPPDATA%\Programs\Watt`，以及 `%LOCALAPPDATA%\Watt` 下的缓存、设备改名/隐藏记录和第三方插件数据。确认提示可以输入 `y`；非交互场景使用 `Watt.Setup.exe uninstall --yes --keep-data` 保留缓存与用户插件。
 
+卸载前会校验目标目录确实是 Watt 安装（默认目录或包含 `Watt.exe` / 插件契约的目录）。`--install-dir` 指向普通文件夹、发行版目录或其 `app\` 子目录时会拒绝删除并以退出码 `3` 结束；自启项如果指向另一个 Watt 副本也会保留。目标路径不存在时不会停止正在运行的 Watt，也不会删除共享的 `%LOCALAPPDATA%\Watt` 数据。`Watt.Setup.exe --version` 可打印安装器版本。
+
 ## 从源码构建
 
 需要 .NET SDK 9 与 Windows 10/11 SDK 的 `Windows.winmd`（默认查找
@@ -152,11 +154,11 @@ build.cmd
 运行后会提示输入本次发布版本，例如：
 
 ```text
-[build] Enter the release version, for example 2.2.6:
+[build] Enter the release version, for example 2.3.0:
 Version: 
 ```
 
-版本号只用于本次构建，不写死在 `build.cmd` 中；也可以非交互执行 `build.cmd 2.2.6`。输入的版本会同时写入主程序、安装器和发行目录/zip 名称。
+版本号只用于本次构建，不写死在 `build.cmd` 中；也可以非交互执行 `build.cmd 2.3.0`。输入的版本会同时写入主程序、安装器（`Watt.Setup.exe --version` / 横幅）、发行目录和 zip 名称。
 
 `build.cmd` 会依次构建：
 
@@ -167,7 +169,7 @@ Version:
 - 把完整发行版汇总到带版本号的目录，并生成 zip：
 
 ```
-dist\Watt-2.2.6-win-x64\
+dist\Watt-2.3.0-win-x64\
 ├─ Watt.Setup.exe              # 一级目录：安装/卸载程序，避免误操作
 ├─ README.md
 ├─ docs\
@@ -181,10 +183,10 @@ dist\Watt-2.2.6-win-x64\
       └─ Watt.Plugins.BleGatt.dll
 ```
 
-构建完成后双击 `dist\Watt-2.2.6-win-x64\Watt.Setup.exe`，选择「1. 安装」：
+构建完成后双击 `dist\Watt-2.3.0-win-x64\Watt.Setup.exe`，选择「1. 安装」：
 
 ```cmd
-cd dist\Watt-2.2.6-win-x64
+cd dist\Watt-2.3.0-win-x64
 Watt.Setup.exe
 ```
 
@@ -223,7 +225,24 @@ Watt.Setup.exe
 | `--demo [--close-after N]` | 托盘 + 悬浮窗使用假数据运行，便于截图 |
 | `--close-after N` | 正常托盘模式运行 N 秒后自动退出（自动化测试用） |
 
-运行日志写在 exe 同目录的 `watt-startup.log`。
+运行日志写在 exe 同目录的 `watt-startup.log`（超过 1 MB 轮换为 `.1`）。诊断参数缺少值、输出文件无法写入时会以非零退出码结束（`2` = 参数错误，`1` = 运行/写入失败），方便自动化判断。
+
+### 自动化测试
+
+仓库自带一套不依赖第三方测试框架的 net48 测试工程，覆盖电量调度/合并/缓存、插件加载与覆盖、设备偏好、BLE 计数保护、自启逻辑、面板 UI 与诊断模式：
+
+```cmd
+tests\run-tests.cmd
+```
+
+测试会把 `WATT_DATA_DIR` 指向 `.test-out\test-data\`，不会读写 `%LOCALAPPDATA%\Watt` 的真实缓存；UI 测试在 STA 线程创建控件但不会显示窗口。也可以给测试传过滤词，例如 `tests\run-tests.cmd battery`。
+
+开发/自动化时可以用 `WATT_DATA_DIR` 环境变量把整个数据目录（`last-known.json`、`devices.json`、`ble-battery-guard.txt`、`plugins\`、`plugin-data\`）重定向到临时目录：
+
+```cmd
+set "WATT_DATA_DIR=%TEMP%\watt-test-data"
+Watt.exe --selftest "%TEMP%\selftest.json"
+```
 
 ## 目录结构
 
@@ -238,11 +257,14 @@ watt/
 │  │  ├─ Tray/                  # 托盘图标、右键菜单、一级托盘固定
 │  │  ├─ UI/                    # 悬浮窗、面板、主题、图标字形
 │  │  └─ Diagnostics/           # --snapshot / --diagnose
-│  ├─ Watt.Setup/               # C# 安装/卸载程序；templates 下是发行版 cmd 包装器
+│  ├─ Watt.Setup/               # C# 安装/卸载程序
 │  ├─ Watt.Plugin.Contracts/    # 公共插件 SDK（模型 + IBatteryPlugin 接口）
 │  ├─ Watt.Plugin.Support/      # 插件复用库（HID、WinRT、设备分类、HFP 读取）
 │  ├─ Watt.Plugins.Windows/     # 内置插件：Windows AEP + HFP 节点
 │  └─ Watt.Plugins.BleGatt/     # 内置插件：BLE GATT 0x180F/0x2A19
+├─ tests/                        # 自动化测试工程与 test-only 插件
+│  ├─ Watt.Tests/                # 无第三方框架的 net48 测试运行器
+│  └─ plugins/                   # 同 Id 覆盖测试用的小插件
 ├─ sdk/                         # 插件开发资料：提示词、采集模板、验收清单、示例
 │  └─ sample/Watt.Plugin.Sample/ # 可构建的示例第三方插件
 ├─ tools/IconGen/               # 托盘/应用图标生成器（矢量 → 多尺寸 ICO）
@@ -268,7 +290,7 @@ watt/
 
 ## 技术说明
 
-- 目标框架 .NET Framework 4.8（Windows 11 自带），WPF + WinForms（仅用于 `NotifyIcon`），x64；主程序约 240 KB，另有插件 SDK DLL 与内置插件。
+- 目标框架 .NET Framework 4.8（Windows 11 自带），WPF + WinForms（仅用于 `NotifyIcon`），x64；主程序约 260 KB，另有插件 SDK DLL 与内置插件。
 - **插件架构**：`PluginHost` 从 `<安装目录>\plugins`、`%LOCALAPPDATA%\Watt\plugins` 和 `--plugin-dir` 加载 DLL；每个插件实现 `IBatteryPlugin.ReadAsync`，返回“观察到的设备 + 是否在线”，不直接写缓存。宿主负责并行调度、超时、按 Priority 合并去重、LastKnownStore 持久化，以及连续 3 次 `HardwarePresent=false` 后清理该插件的缓存设备。完整契约见 [docs/plugins.md](docs/plugins.md)。
 - **自动刷新**：`BatteryService` 每 60 秒扫描一次；已连接的 BLE 设备会直接读取 uncached GATT，并以 Priority 5 覆盖 Windows AEP 缓存（Priority 10），避免系统缓存值掩盖新电量。Windows AEP / 经典 HFP 是否更新取决于系统和设备；休眠设备按设计保留缓存，可用面板右上角的刷新按钮强制重扫。
 - WinRT 蓝牙 API 通过本地 `Windows.winmd` 直接引用；`WinRtAsync` 适配器把 `IAsyncOperation<T>` 转成 `Task<T>`，放在 `Watt.Plugin.Support` 供插件复用。

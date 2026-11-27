@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>Watt.Tests</AssemblyName>
+    <RootNamespace>Watt.Tests</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Watt\Watt.csproj" />
+    <ProjectReference Include="..\..\src\Watt.Plugin.Contracts\Watt.Plugin.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Watt.Plugin.Support\Watt.Plugin.Support.csproj" />
+    <ProjectReference Include="..\..\src\Watt.Plugins.BleGatt\Watt.Plugins.BleGatt.csproj" />
+    <ProjectReference Include="..\..\src\Watt.Plugins.Windows\Watt.Plugins.Windows.csproj" />
+    <ProjectReference Include="..\plugins\OverrideA\OverrideA.csproj" />
+    <ProjectReference Include="..\plugins\OverrideB\OverrideB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+</Project>

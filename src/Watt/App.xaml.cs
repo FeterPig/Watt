@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -46,11 +46,6 @@ namespace Watt
         private bool _demoMode;
         private DateTime _lastRefreshUtc = DateTime.MinValue;
 
-        internal static string LogPath
-        {
-            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "watt-startup.log"); }
-        }
-
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -79,43 +74,77 @@ namespace Watt
 
         private bool RunDiagnosticMode(string[] args)
         {
+            if (HasMissingValue(args, "--plugin-dir"))
+            {
+                RejectMissingValue("--plugin-dir", "a directory");
+                return true;
+            }
+
+            if (HasMissingValue(args, "--snapshot"))
+            {
+                RejectMissingValue("--snapshot", "an output directory");
+                return true;
+            }
             var snapshotDir = GetOption(args, "--snapshot");
             if (snapshotDir != null)
             {
                 Trace("rendering snapshots to " + snapshotDir);
-                Snapshot.Render(snapshotDir);
-                Trace("snapshots done");
-                Shutdown();
+                try
+                {
+                    Snapshot.Render(snapshotDir);
+                    Trace("snapshots done");
+                    Shutdown(0);
+                }
+                catch (Exception ex)
+                {
+                    Trace("snapshots failed: " + ex);
+                    Shutdown(1);
+                }
                 return true;
             }
 
+            if (HasMissingValue(args, "--selftest"))
+            {
+                RejectMissingValue("--selftest", "an output file");
+                return true;
+            }
             var selfTestPath = GetOption(args, "--selftest");
             if (selfTestPath != null)
             {
                 Trace("selftest -> " + selfTestPath);
-                BatterySelfTest.Run(selfTestPath, GetPluginDirectories(args));
-                Trace("selftest done");
-                Shutdown(0);
+                var ok = BatterySelfTest.Run(selfTestPath, GetPluginDirectories(args));
+                Trace(ok ? "selftest done" : "selftest failed");
+                Shutdown(ok ? 0 : 1);
                 return true;
             }
 
+            if (HasMissingValue(args, "--diagnose"))
+            {
+                RejectMissingValue("--diagnose", "an output file");
+                return true;
+            }
             var diagnosePath = GetOption(args, "--diagnose");
             if (diagnosePath != null)
             {
                 Trace("diagnose -> " + diagnosePath);
-                HardwareDiagnostics.Run(diagnosePath, GetPluginDirectories(args));
-                Trace("diagnose done");
-                Shutdown(0);
+                var ok = HardwareDiagnostics.Run(diagnosePath, GetPluginDirectories(args));
+                Trace(ok ? "diagnose done" : "diagnose failed");
+                Shutdown(ok ? 0 : 1);
                 return true;
             }
 
+            if (HasMissingValue(args, "--plugins"))
+            {
+                RejectMissingValue("--plugins", "an output file");
+                return true;
+            }
             var pluginsPath = GetOption(args, "--plugins");
             if (pluginsPath != null)
             {
                 Trace("plugins -> " + pluginsPath);
-                BatterySelfTest.WritePluginList(pluginsPath, GetPluginDirectories(args));
-                Trace("plugins done");
-                Shutdown(0);
+                var ok = BatterySelfTest.WritePluginList(pluginsPath, GetPluginDirectories(args));
+                Trace(ok ? "plugins done" : "plugins failed");
+                Shutdown(ok ? 0 : 1);
                 return true;
             }
 
@@ -126,6 +155,12 @@ namespace Watt
             }
 
             return false;
+        }
+
+        private void RejectMissingValue(string option, string expected)
+        {
+            Trace("ERROR: " + option + " requires " + expected + "; run Watt.exe without arguments for the tray app.");
+            Shutdown(2);
         }
 
         private void ShowPanelPreview(string[] args)
@@ -140,7 +175,8 @@ namespace Watt
 
             var autoClose = GetOption(args, "--panel-seconds");
             double seconds;
-            if (autoClose != null && double.TryParse(autoClose, out seconds))
+            if (autoClose != null && double.TryParse(autoClose, NumberStyles.Float, CultureInfo.InvariantCulture,
+                    out seconds) && seconds > 0)
             {
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
                 timer.Tick += delegate
@@ -174,7 +210,7 @@ namespace Watt
             _themeWatcher.Changed += delegate { ApplyTheme(); };
             _themeWatcher.Start();
 
-            _devicePreferences = new DevicePreferences(Trace);
+            _devicePreferences = _demoMode ? null : new DevicePreferences(Trace);
 
             _panel = new PanelView();
             _panel.SetDevices(new PeripheralDevice[0], true);
@@ -189,17 +225,19 @@ namespace Watt
             ApplyTheme();
 
             _startupService = new StartupService(RunKeyPath, RunValueName);
-            EnsureAutostartForInstalledCopy();
+            if (!_demoMode) EnsureAutostartForInstalledCopy();
 
             _tray = new TrayController();
             _tray.Clicked += delegate { TogglePanel(); };
             _tray.ExitRequested += delegate { Shutdown(); };
             _tray.AutostartToggleRequested += delegate { ToggleAutostart(); };
             _tray.OpenPluginFolderRequested += delegate { OpenPluginFolder(); };
-            _tray.Show(TrayAssets.LoadTrayIcon(_themeWatcher.TaskbarIsLight), _startupService.IsEnabled);
+            _tray.RestoreHiddenRequested += delegate { RestoreHiddenDevices(); };
+            _tray.Show(TrayAssets.LoadTrayIcon(!_themeWatcher.TaskbarIsLight), _startupService.IsEnabled);
+            _tray.SetRestoreHiddenEnabled(_devicePreferences != null && _devicePreferences.HiddenCount > 0);
             ApplyTheme();
             StartTaskbarMessageHook();
-            ScheduleTrayPromotion();
+            if (!_demoMode) ScheduleTrayPromotion();
 
             ScheduleAutoClose(args);
 
@@ -361,7 +399,8 @@ namespace Watt
         {
             var closeAfter = GetOption(args, "--close-after");
             double seconds;
-            if (closeAfter == null || !double.TryParse(closeAfter, out seconds)) return;
+            if (closeAfter == null || !double.TryParse(closeAfter, NumberStyles.Float, CultureInfo.InvariantCulture,
+                    out seconds) || seconds <= 0) return;
             _autoCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
             _autoCloseTimer.Tick += delegate
             {
@@ -437,6 +476,7 @@ namespace Watt
                 var task = _battery.RefreshAsync(true, true);
                 if (task != null) await task.ConfigureAwait(true);
 
+                _lastRefreshUtc = DateTime.UtcNow;
                 UpdateBatterySnapshot();
                 _panel.ShowRefreshResult(true);
                 Trace("manual refresh completed: " + _battery.Devices.Count + " device(s)");
@@ -469,6 +509,16 @@ namespace Watt
             if (_devicePreferences == null) return;
             _devicePreferences.Hide(e.DeviceId);
             Trace("device hidden from panel: " + e.DeviceId);
+            if (_tray != null) _tray.SetRestoreHiddenEnabled(_devicePreferences.HiddenCount > 0);
+            UpdateBatterySnapshot();
+        }
+
+        private void RestoreHiddenDevices()
+        {
+            if (_devicePreferences == null) return;
+            if (!_devicePreferences.RestoreHidden()) return;
+            Trace("hidden devices restored from the tray menu");
+            if (_tray != null) _tray.SetRestoreHiddenEnabled(false);
             UpdateBatterySnapshot();
         }
 
@@ -649,16 +699,7 @@ namespace Watt
 
         internal static void Trace(string message)
         {
-            try
-            {
-                File.AppendAllText(LogPath,
-                    DateTime.Now.ToString("HH:mm:ss.fff") + " " + message + Environment.NewLine,
-                    Encoding.UTF8);
-            }
-            catch
-            {
-                // diagnostics must never take the app down
-            }
+            LogFile.Write(DateTime.Now.ToString("HH:mm:ss.fff") + " " + message);
         }
 
         private static string GetOption(string[] args, string name)
@@ -680,7 +721,7 @@ namespace Watt
             {
                 if (!string.Equals(args[i], "--plugin-dir", StringComparison.OrdinalIgnoreCase)) continue;
                 var value = args[i + 1];
-                if (string.IsNullOrWhiteSpace(value)) continue;
+                if (string.IsNullOrWhiteSpace(value) || value.StartsWith("--", StringComparison.Ordinal)) continue;
                 foreach (var part in value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     var trimmed = part.Trim();
@@ -696,6 +737,23 @@ namespace Watt
             foreach (var arg in args)
             {
                 if (string.Equals(arg, name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>True when an option appears without a usable value (last argument, empty,
+        /// or followed by another option). Used to fail fast instead of silently starting the
+        /// tray app with a broken diagnostic command line.</summary>
+        private static bool HasMissingValue(string[] args, string name)
+        {
+            if (args == null) return false;
+            for (var i = 0; i < args.Length; i++)
+            {
+                if (!string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (i + 1 >= args.Length) return true;
+                var value = args[i + 1];
+                if (string.IsNullOrWhiteSpace(value) || value.StartsWith("--", StringComparison.Ordinal))
+                    return true;
             }
             return false;
         }

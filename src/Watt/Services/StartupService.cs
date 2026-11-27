@@ -131,7 +131,7 @@ namespace Watt.Services
         public void Enable()
         {
             var exePath = ExePath;
-            if (string.IsNullOrEmpty(exePath))
+            if (string.IsNullOrWhiteSpace(exePath))
             {
                 ServiceLog.Write("StartupService.Enable: cannot determine the current executable path");
                 return;
@@ -143,7 +143,7 @@ namespace Watt.Services
         /// <summary>Registers <paramref name="exePath"/> for autostart.</summary>
         public void Enable(string exePath)
         {
-            if (string.IsNullOrEmpty(exePath))
+            if (string.IsNullOrWhiteSpace(exePath))
             {
                 ServiceLog.Write("StartupService.Enable: empty executable path");
                 return;
@@ -196,9 +196,11 @@ namespace Watt.Services
             var trimmed = exePath.Trim();
             if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[trimmed.Length - 1] == '"')
             {
-                trimmed = trimmed.Substring(1, trimmed.Length - 2);
+                trimmed = trimmed.Substring(1, trimmed.Length - 2).Trim();
             }
 
+            // A whitespace-only path must not register an empty command in the Run key.
+            if (trimmed.Length == 0) return null;
             return "\"" + trimmed + "\"";
         }
 
@@ -207,6 +209,12 @@ namespace Watt.Services
             try
             {
                 var command = Quote(exePath);
+                if (command == null)
+                {
+                    ServiceLog.Write("StartupService: the executable path is blank");
+                    return false;
+                }
+
                 if (!_store.WriteValue(_runKeyPath, _valueName, command))
                 {
                     ServiceLog.Write("StartupService: store refused to write " + _valueName + " under " + _runKeyPath);

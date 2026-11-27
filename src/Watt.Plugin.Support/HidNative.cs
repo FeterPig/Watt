@@ -40,6 +40,7 @@ namespace Watt.Plugins.Support
         private const uint DigcfPresent = 0x00000002;
         private const uint DigcfDeviceInterface = 0x00000010;
         private const int HidpStatusSuccess = 0x00110000;
+        private const int ErrorIoPending = 997;
 
         /// <summary>
         /// Diagnostic helper: every present HID top-level collection (keyboards, mice, receivers,
@@ -178,13 +179,21 @@ namespace Watt.Plugins.Support
             try
             {
                 var overlapped = new NativeOverlapped { EventHandle = readEvent };
-                ReadFile(handle, buffer, (uint)buffer.Length, IntPtr.Zero, ref overlapped);
-
-                var wait = WaitForSingleObject(readEvent, (uint)Math.Max(0, timeoutMs));
-                if (wait != 0)
-                {
-                    try { CancelIoEx(handle, IntPtr.Zero); } catch { }
+                var started = ReadFile(handle, buffer, (uint)buffer.Length, IntPtr.Zero, ref overlapped);
+                if (!started && Marshal.GetLastWin32Error() != ErrorIoPending)
                     return false;
+
+                // An overlapped read normally returns false + ERROR_IO_PENDING, but a fast HID
+                // device can complete it synchronously. In that case the event is never
+                // signalled, so only wait when the operation is actually pending.
+                if (!started)
+                {
+                    var wait = WaitForSingleObject(readEvent, (uint)Math.Max(0, timeoutMs));
+                    if (wait != 0)
+                    {
+                        try { CancelIoEx(handle, IntPtr.Zero); } catch { }
+                        return false;
+                    }
                 }
 
                 uint transferred;
@@ -214,13 +223,18 @@ namespace Watt.Plugins.Support
             try
             {
                 var overlapped = new NativeOverlapped { EventHandle = writeEvent };
-                WriteFile(handle, report, (uint)report.Length, IntPtr.Zero, ref overlapped);
-
-                var wait = WaitForSingleObject(writeEvent, (uint)Math.Max(0, timeoutMs));
-                if (wait != 0)
-                {
-                    try { CancelIoEx(handle, IntPtr.Zero); } catch { }
+                var started = WriteFile(handle, report, (uint)report.Length, IntPtr.Zero, ref overlapped);
+                if (!started && Marshal.GetLastWin32Error() != ErrorIoPending)
                     return false;
+
+                if (!started)
+                {
+                    var wait = WaitForSingleObject(writeEvent, (uint)Math.Max(0, timeoutMs));
+                    if (wait != 0)
+                    {
+                        try { CancelIoEx(handle, IntPtr.Zero); } catch { }
+                        return false;
+                    }
                 }
 
                 uint transferred;

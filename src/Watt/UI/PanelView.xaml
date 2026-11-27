@@ -40,6 +40,7 @@
                             Focusable="False"
                             Cursor="Hand"
                             ToolTip="修改设备名"
+                            AutomationProperties.Name="修改设备名"
                             Click="EditButton_Click">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
@@ -84,6 +85,7 @@
                                 Focusable="False"
                                 Cursor="Hand"
                                 ToolTip="刷新"
+                                AutomationProperties.Name="刷新设备列表"
                                 Click="RefreshButton_Click">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -117,7 +119,11 @@
                 </Grid>
 
                 <Grid Grid.Row="1">
-                    <ItemsControl x:Name="DeviceList" Margin="0,0,0,8">
+                    <ScrollViewer x:Name="DeviceScroll"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Focusable="False">
+                        <ItemsControl x:Name="DeviceList" Margin="0,0,0,8">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel />
@@ -164,6 +170,7 @@
                                              Padding="2,1,2,2"
                                              MaxLength="40"
                                              VerticalContentAlignment="Center"
+                                             AutomationProperties.Name="设备名"
                                              Visibility="{Binding EditVisibility}"
                                              KeyDown="NameBox_KeyDown"
                                              LostFocus="NameBox_LostFocus" />
@@ -194,7 +201,8 @@
                                             Background="Transparent"
                                             Focusable="False"
                                             Cursor="Hand"
-                                            ToolTip="删除设备"
+                                            ToolTip="从面板移除（可在托盘恢复）"
+                                            AutomationProperties.Name="从面板移除该设备"
                                             Tag="{Binding}"
                                             Click="DeleteButton_Click">
                                         <Button.Template>
@@ -226,6 +234,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </ScrollViewer>
 
                     <!-- Empty state: a single line, no icon, no hint copy. -->
                     <TextBlock x:Name="EmptyText"

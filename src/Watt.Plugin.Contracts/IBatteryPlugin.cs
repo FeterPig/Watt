@@ -26,7 +26,7 @@ namespace Watt.Plugins
         string Version { get; }
 
         /// <summary>Merge preference; lower wins when two plugins observe the same device. Built-in
-        /// plugins use 10 = Windows AEP/HFP and 20 = BLE GATT; third-party plugins should use >= 60.</summary>
+        /// plugins use 10 = Windows AEP/HFP and 5 = BLE GATT; third-party plugins should use >= 60.</summary>
         int Priority { get; }
 
         /// <summary>How long the host waits for one scan. Clamped by the host (500..15000 ms).</summary>

@@ -3,17 +3,22 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Text;
 using Watt.Models;
+using Watt.Plugins.Support;
 
 namespace Watt.Settings
 {
     /// <summary>
     /// Per-device user preferences: custom display names and devices hidden from the panel.
     /// Stored beside the last-known battery cache so both survive restarts; the plugin host keeps
-    /// reading a hidden device, but the panel no longer shows it.
+    /// reading a hidden device, but the panel no longer shows it. Hidden devices can be restored
+    /// from the tray menu.
     /// </summary>
     internal sealed class DevicePreferences
     {
+        private const int MaxNameLength = 40;
+
         private readonly object _sync = new object();
         private readonly string _path;
         private readonly Dictionary<string, string> _names =
@@ -35,11 +40,11 @@ namespace Watt.Settings
 
         internal static string DefaultPath()
         {
-            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return Path.Combine(local, "Watt", "devices.json");
+            return WattPaths.DataFile("devices.json");
         }
 
-        /// <summary>Applies stored names and removes hidden devices from a panel snapshot.</summary>
+        /// <summary>Applies stored names and removes hidden devices from a panel snapshot.
+        /// The input readings are not modified: the service keeps its own snapshot objects.</summary>
         public IReadOnlyList<PeripheralDevice> Apply(IReadOnlyList<PeripheralDevice> devices)
         {
             var result = new List<PeripheralDevice>();
@@ -53,21 +58,34 @@ namespace Watt.Settings
                     if (device == null || string.IsNullOrEmpty(device.Id)) continue;
                     if (_hidden.Contains(device.Id)) continue;
 
+                    var copy = Clone(device);
                     string name;
-                    if (_names.TryGetValue(device.Id, out name) && !string.IsNullOrWhiteSpace(name))
-                        device.Name = name;
-                    result.Add(device);
+                    if (_names.TryGetValue(copy.Id, out name) && !string.IsNullOrWhiteSpace(name))
+                        copy.Name = name;
+                    result.Add(copy);
                 }
             }
             return result;
+        }
+
+        /// <summary>Number of devices currently hidden from the panel.</summary>
+        public int HiddenCount
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    EnsureLoaded();
+                    return _hidden.Count;
+                }
+            }
         }
 
         /// <summary>Stores a custom name. An empty name removes the override.</summary>
         public void Rename(string deviceId, string name)
         {
             if (string.IsNullOrEmpty(deviceId)) return;
-            var normalized = name == null ? string.Empty : name.Trim();
-            if (normalized.Length > 40) normalized = normalized.Substring(0, 40);
+            var normalized = SanitizeName(name);
 
             lock (_sync)
             {
@@ -78,7 +96,8 @@ namespace Watt.Settings
                 }
                 else
                 {
-                    if (_names.TryGetValue(deviceId, out var existing) &&
+                    string existing;
+                    if (_names.TryGetValue(deviceId, out existing) &&
                         string.Equals(existing, normalized, StringComparison.Ordinal))
                         return;
                     _names[deviceId] = normalized;
@@ -97,6 +116,48 @@ namespace Watt.Settings
                 if (!_hidden.Add(deviceId)) return;
                 SaveLocked();
             }
+        }
+
+        /// <summary>Shows every hidden device again. Returns true when something changed.</summary>
+        public bool RestoreHidden()
+        {
+            lock (_sync)
+            {
+                EnsureLoaded();
+                if (_hidden.Count == 0) return false;
+                _hidden.Clear();
+                SaveLocked();
+                return true;
+            }
+        }
+
+        private static string SanitizeName(string name)
+        {
+            if (name == null) return string.Empty;
+            var builder = new StringBuilder(name.Length);
+            foreach (var c in name)
+            {
+                builder.Append(char.IsControl(c) ? ' ' : c);
+            }
+
+            var trimmed = builder.ToString().Trim();
+            if (trimmed.Length > MaxNameLength) trimmed = trimmed.Substring(0, MaxNameLength).Trim();
+            return trimmed;
+        }
+
+        private static PeripheralDevice Clone(PeripheralDevice device)
+        {
+            return new PeripheralDevice
+            {
+                Id = device.Id,
+                Name = device.Name,
+                Kind = device.Kind,
+                BatteryPercent = device.BatteryPercent,
+                IsCharging = device.IsCharging,
+                IsConnected = device.IsConnected,
+                SourceId = device.SourceId,
+                Address = device.Address
+            };
         }
 
         private void EnsureLoaded()
@@ -118,9 +179,10 @@ namespace Watt.Settings
                 {
                     foreach (var entry in file.Names)
                     {
-                        if (entry == null || string.IsNullOrEmpty(entry.Id) ||
-                            string.IsNullOrWhiteSpace(entry.Name)) continue;
-                        _names[entry.Id] = entry.Name.Trim();
+                        if (entry == null || string.IsNullOrEmpty(entry.Id)) continue;
+                        var name = SanitizeName(entry.Name);
+                        if (name.Length == 0) continue;
+                        _names[entry.Id] = name;
                     }
                 }
                 if (file.Hidden != null)
@@ -152,17 +214,12 @@ namespace Watt.Settings
                 }
                 foreach (var id in _hidden) file.Hidden.Add(id);
 
-                var directory = Path.GetDirectoryName(_path);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
-                var temporary = _path + ".tmp";
-                var serializer = new DataContractJsonSerializer(typeof(PreferencesFile));
-                using (var stream = File.Create(temporary))
+                using (var stream = new MemoryStream())
                 {
+                    var serializer = new DataContractJsonSerializer(typeof(PreferencesFile));
                     serializer.WriteObject(stream, file);
+                    AtomicFile.WriteAllBytes(_path, stream.ToArray());
                 }
-                if (File.Exists(_path)) File.Delete(_path);
-                File.Move(temporary, _path);
             }
             catch (Exception ex)
             {

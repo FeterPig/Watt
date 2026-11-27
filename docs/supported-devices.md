@@ -28,14 +28,16 @@ DEVPKEY_Device_BatteryLevel
 {104EA319-6EE2-4701-BD47-8DDBF425BBE5}, 2
 ```
 
-按设备 MAC 归并，只对当前已连接的经典蓝牙设备采用。方法来源：[VigilWatt `ClassicDevNodeReader.cs`](https://gitee.com/YGWG-LX/vigil-watt/blob/main/src/VigilWatt.Core/Ble/ClassicDevNodeReader.cs)（MIT © 2026 evren），本项目按其文档独立实现。
+按设备 MAC 归并；对 Windows 仍保留 HFP 节点、且能读到电量的经典蓝牙设备采用。设备休眠/断开时该值可能只是最后一次读数，宿主仍按 last-known 语义决定显示与保留。方法来源：[VigilWatt `ClassicDevNodeReader.cs`](https://gitee.com/YGWG-LX/vigil-watt/blob/main/src/VigilWatt.Core/Ble/ClassicDevNodeReader.cs)（MIT © 2026 evren），本项目按其文档独立实现。
 
 ## BLE GATT
 
 - 只处理已配对的 BLE 设备；
 - 已连接设备即使 AEP 已有电量也直接读取；GATT 新读数优先于 Windows AEP 缓存；
 - 设备未连接时跳过，不主动唤醒休眠设备；
-- 连接后读取标准 Battery Service `0x180F` / characteristic `0x2A19`，只接受 0–100。
+- 连接后读取标准 Battery Service `0x180F` / characteristic `0x2A19`，只接受 0–100；
+- 充电状态从同一设备的 Windows AEP `System.Devices.BatteryPlusCharging` 读取，避免 GATT 新读数合并后丢失充电标记；
+- 已知有些设备把 `0x2A19` 实现成“每次读取 +1”的计数器（已确认 EWEADN X23 Pro）；插件会学习并锁定基线，详见 [battery-research.md](battery-research.md) 2.1。
 
 ## 休眠与离线行为
 

@@ -18,7 +18,8 @@ namespace Watt.Plugins.Support
             "headphone", "headset", "earbud", "earphone", "ear buds", "earbuds", "airpods",
             "quietcomfort", "soundcore", "sennheiser", "wh-", "wf-", "ch-", "hifi", " hi-fi",
             "speaker", "soundbar", "buds", "zone wireless", "zone ", "qc3", "qc45", "qc ",
-            "tune", "beats ", "jbl ", "bose ", "crusher", "pulse", "void", "arctis"
+            "tune", "beats ", "jbl ", "bose ", "crusher", "pulse", "void", "arctis",
+            "edifier", "razer kraken"
         };
 
         private static readonly string[] KeyboardTokens =

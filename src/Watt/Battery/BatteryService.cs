@@ -180,6 +180,11 @@ namespace Watt.Battery
             }
 
             var candidates = new List<Candidate>(16);
+            var freshIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var disconnectedIds = removeDisconnected
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : null;
+
             foreach (var outcome in outcomes)
             {
                 if (outcome == null || outcome.Loaded == null) continue;
@@ -222,8 +227,11 @@ namespace Watt.Battery
 
                     if (reading.BatteryPercent.HasValue)
                     {
+                        // A third-party plugin must not be able to push 150% or -5% into the panel
+                        // or the persistent cache.
+                        reading.BatteryPercent = ClampPercent(reading.BatteryPercent.Value);
                         reading.SourceId = plugin.Id;
-                        LastKnownStore.Save(reading, plugin.Id, DateTime.UtcNow);
+                        freshIds.Add(reading.Id);
                         candidates.Add(new Candidate { Device = reading, Priority = plugin.Priority, IsFresh = true });
                         continue;
                     }
@@ -234,7 +242,7 @@ namespace Watt.Battery
                     // plugins that do not set IsConnected) keeps its cached row.
                     if (removeDisconnected && reading.IsConnected == false)
                     {
-                        LastKnownStore.Remove(reading.Id);
+                        disconnectedIds.Add(reading.Id);
                         continue;
                     }
 
@@ -249,7 +257,7 @@ namespace Watt.Battery
                         Name = string.IsNullOrWhiteSpace(reading.Name) ? cached.Name : reading.Name,
                         Kind = reading.Kind != DeviceKind.Other ? reading.Kind : cached.Kind,
                         Address = string.IsNullOrWhiteSpace(reading.Address) ? cached.Address : reading.Address,
-                        BatteryPercent = cached.BatteryPercent,
+                        BatteryPercent = ClampPercent(cached.BatteryPercent.Value),
                         IsCharging = cached.IsCharging,
                         IsConnected = reading.IsConnected,
                         SourceId = cached.SourceId ?? cachedPluginId ?? plugin.Id
@@ -258,7 +266,43 @@ namespace Watt.Battery
                 }
             }
 
-            return BuildSnapshot(candidates);
+            // Deleting a cache entry is deferred until every plugin has reported. If another
+            // plugin read the same device successfully in this scan, that fresh reading wins and
+            // the "disconnected" observation only describes one transport.
+            HashSet<string> removedIds = null;
+            if (disconnectedIds != null)
+            {
+                foreach (var id in disconnectedIds)
+                {
+                    if (freshIds.Contains(id)) continue;
+                    LastKnownStore.Remove(id);
+                    if (removedIds == null) removedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    removedIds.Add(id);
+                }
+            }
+
+            var merged = MergeCandidates(candidates, removedIds);
+            var devices = new List<PeripheralDevice>(merged.Count);
+            List<PeripheralDevice> freshDevices = null;
+            foreach (var candidate in merged)
+            {
+                if (!candidate.Device.BatteryPercent.HasValue) continue;
+                candidate.Device.BatteryPercent = ClampPercent(candidate.Device.BatteryPercent.Value);
+                devices.Add(candidate.Device);
+                if (candidate.IsFresh)
+                {
+                    if (freshDevices == null) freshDevices = new List<PeripheralDevice>();
+                    freshDevices.Add(candidate.Device);
+                }
+            }
+
+            devices.Sort(CompareDevices);
+
+            // Persist only the merged winners, in one write. The winning plugin (SourceId) owns
+            // the entry, so restarting Watt shows the same value that was on screen.
+            if (freshDevices != null) LastKnownStore.SaveMany(freshDevices, DateTime.UtcNow);
+
+            return devices.ToArray();
         }
 
         private async Task<PluginOutcome> ScanPluginAsync(LoadedPlugin loaded, CancellationToken cancellationToken)
@@ -336,7 +380,7 @@ namespace Watt.Battery
             }
         }
 
-        private static IReadOnlyList<PeripheralDevice> BuildSnapshot(List<Candidate> candidates)
+        private static List<Candidate> MergeCandidates(List<Candidate> candidates, HashSet<string> removedIds)
         {
             // Lower priority number wins. Fresh readings beat cached ones even from a lower
             // priority source (a new value is more useful than an old one).
@@ -350,6 +394,8 @@ namespace Watt.Battery
             var merged = new List<Candidate>(candidates.Count);
             foreach (var candidate in candidates)
             {
+                if (removedIds != null && removedIds.Contains(candidate.Device.Id)) continue;
+
                 var target = FindMergeTarget(merged, candidate.Device);
                 if (target == null)
                 {
@@ -384,41 +430,59 @@ namespace Watt.Battery
                     existing.IsConnected = candidate.Device.IsConnected;
             }
 
-            var devices = new List<PeripheralDevice>(merged.Count);
-            foreach (var candidate in merged)
-            {
-                if (candidate.Device.BatteryPercent.HasValue) devices.Add(candidate.Device);
-            }
-
-            devices.Sort(CompareDevices);
-            return devices.ToArray();
+            return merged;
         }
 
         private static Candidate FindMergeTarget(List<Candidate> merged, PeripheralDevice device)
         {
             var address = DeviceClassifier.NormalizeAddress(device.Address);
+            var name = DeviceClassifier.NormalizeName(device.Name);
+
             if (address != null)
             {
+                // Two devices with two different real MAC addresses are always different
+                // devices, even when their product names are identical (two "MX Keys", two
+                // identically named headsets). Never merge them by name.
                 foreach (var candidate in merged)
                 {
                     var other = DeviceClassifier.NormalizeAddress(candidate.Device.Address);
                     if (other != null && string.Equals(other, address, StringComparison.OrdinalIgnoreCase))
                         return candidate;
                 }
+
+                // An address-less observation may still be the same device: a plugin that cannot
+                // expose the MAC can merge into the addressed row (and vice versa) by name.
+                if (name.Length >= 4)
+                {
+                    foreach (var candidate in merged)
+                    {
+                        if (DeviceClassifier.NormalizeAddress(candidate.Device.Address) != null) continue;
+                        if (string.Equals(DeviceClassifier.NormalizeName(candidate.Device.Name), name,
+                                StringComparison.OrdinalIgnoreCase))
+                            return candidate;
+                    }
+                }
+
+                return null;
             }
 
-            var name = DeviceClassifier.NormalizeName(device.Name);
             if (name.Length >= 4)
             {
                 foreach (var candidate in merged)
                 {
                     var other = DeviceClassifier.NormalizeName(candidate.Device.Name);
-                    if (string.Equals(other, name, StringComparison.OrdinalIgnoreCase))
-                        return candidate;
+                    if (string.Equals(other, name, StringComparison.OrdinalIgnoreCase)) return candidate;
                 }
             }
 
             return null;
+        }
+
+        private static int ClampPercent(int value)
+        {
+            if (value < 0) return 0;
+            if (value > 100) return 100;
+            return value;
         }
 
         private static int CompareDevices(PeripheralDevice left, PeripheralDevice right)

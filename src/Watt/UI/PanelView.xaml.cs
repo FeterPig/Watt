@@ -24,6 +24,8 @@ namespace Watt.UI
         {
             InitializeComponent();
             DeviceList.ItemsSource = _rows;
+            var workAreaHeight = SystemParameters.WorkArea.Height;
+            SetMaxContentHeight(workAreaHeight > 300 ? workAreaHeight - 160 : double.PositiveInfinity);
             _feedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
             _feedbackTimer.Tick += delegate
             {
@@ -31,6 +33,15 @@ namespace Watt.UI
                 RefreshFeedback.Visibility = Visibility.Collapsed;
             };
             ApplyTheme(Theme.Light);
+        }
+
+        /// <summary>
+        /// Bounds the scrollable device list so a machine with many peripherals still shows a
+        /// panel that fits on screen (the tray corner must not grow past the work area).
+        /// </summary>
+        public void SetMaxContentHeight(double maxHeight)
+        {
+            DeviceScroll.MaxHeight = Math.Max(120, maxHeight);
         }
 
         /// <summary>Raised when the user clicks the circular refresh button.</summary>
@@ -89,13 +100,57 @@ namespace Watt.UI
 
         public void SetDevices(IReadOnlyList<PeripheralDevice> devices, bool scanning)
         {
+            var previous = _lastDevices;
             _lastDevices = devices ?? new PeripheralDevice[0];
             _lastScanning = scanning;
 
             // While editing, keep the text boxes stable. The app refreshes this snapshot when
             // edit mode ends, so a background scan cannot interrupt a rename.
             if (_editMode) return;
+
+            // BatteryService raises Changed at scan start and scan end, and the preference layer
+            // returns a fresh list each time. Rebuild only when a displayed value actually
+            // changed; otherwise an unchanged background scan would tear down every row (and
+            // lose focus/scroll position) twice per minute.
+            if (ReferenceEquals(previous, _lastDevices) || MatchesRows(_lastDevices))
+            {
+                UpdateEmptyState();
+                return;
+            }
+
             RenderDevices();
+        }
+
+        private bool MatchesRows(IReadOnlyList<PeripheralDevice> devices)
+        {
+            var visible = 0;
+            if (devices != null)
+            {
+                foreach (var device in devices)
+                {
+                    if (device != null && device.BatteryPercent.HasValue) visible++;
+                }
+            }
+
+            if (visible != _rows.Count) return false;
+
+            var index = 0;
+            if (devices != null)
+            {
+                foreach (var device in devices)
+                {
+                    if (device == null || !device.BatteryPercent.HasValue) continue;
+                    var current = _rows[index++].Device;
+                    if (!string.Equals(current.Id, device.Id, StringComparison.Ordinal)) return false;
+                    if (!string.Equals(current.Name ?? string.Empty, device.Name ?? string.Empty,
+                            StringComparison.Ordinal)) return false;
+                    if (current.Kind != device.Kind) return false;
+                    if (current.BatteryPercent != device.BatteryPercent) return false;
+                    if (current.IsCharging != device.IsCharging) return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>Disables the refresh button and shows transient "refreshing" feedback.</summary>
@@ -114,6 +169,10 @@ namespace Watt.UI
 
         private void RenderDevices()
         {
+            // A background scan refreshes the same rows every 60 seconds. Keep the user's scroll
+            // position when the rebuilt list is still tall enough instead of jumping to the top.
+            var scrollOffset = DeviceScroll == null ? 0 : DeviceScroll.VerticalOffset;
+
             _rows.Clear();
 
             foreach (var device in _lastDevices)
@@ -133,6 +192,23 @@ namespace Watt.UI
                 _rows.Add(row);
             }
 
+            if (scrollOffset > 0 && DeviceScroll != null)
+            {
+                DeviceScroll.ScrollToVerticalOffset(scrollOffset);
+                if (!Dispatcher.HasShutdownStarted)
+                {
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(delegate
+                    {
+                        DeviceScroll.ScrollToVerticalOffset(scrollOffset);
+                    }));
+                }
+            }
+
+            UpdateEmptyState();
+        }
+
+        private void UpdateEmptyState()
+        {
             var hasDevices = _rows.Count > 0;
             var showLoading = _lastScanning && !hasDevices;
             var showEmpty = !_lastScanning && !hasDevices;
@@ -187,6 +263,11 @@ namespace Watt.UI
             }
             _editMode = false;
             EditButton.Foreground = _theme.TextSecondary;
+
+            // The app refreshes the snapshot when edit mode ends, but a standalone preview (for
+            // example --panel) has no such listener: render the snapshot we buffered while
+            // editing so rows that changed in the background are not left stale.
+            RenderDevices();
             RaiseEditModeChanged();
         }
 
@@ -208,6 +289,7 @@ namespace Watt.UI
 
             row.Name = name;
             row.EditableName = name;
+            row.Device.Name = name;
             var handler = DeviceRenameRequested;
             if (handler != null)
             {

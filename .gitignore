@@ -11,6 +11,9 @@ obj/
 **/.dotnet-home/
 **/.nuget-packages/
 
+# Automated test scratch (the suite redirects WATT_DATA_DIR here)
+.test-out/
+
 # IDE / user state
 .vs/
 .vscode/

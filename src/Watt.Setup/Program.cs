@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using Microsoft.Win32;
 
@@ -51,6 +52,10 @@ namespace Watt.Setup
                     case "--help":
                     case "help":
                         PrintUsage();
+                        return 0;
+                    case "-v":
+                    case "--version":
+                        Console.WriteLine(ProductVersion);
                         return 0;
                     default:
                         Console.Error.WriteLine("Unknown command: " + args[0]);
@@ -106,9 +111,40 @@ namespace Watt.Setup
             Console.ReadLine();
         }
 
+        private static string ProductVersion
+        {
+            get
+            {
+                try
+                {
+                    var assembly = typeof(Program).Assembly;
+                    var informational = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(
+                        assembly, typeof(AssemblyInformationalVersionAttribute));
+                    if (informational != null && !string.IsNullOrWhiteSpace(informational.InformationalVersion))
+                    {
+                        var text = informational.InformationalVersion.Trim();
+                        // The SDK appends "+<git sha>" to the informational version. The version
+                        // shown by the installer should stay the release number, not a build id.
+                        var plus = text.IndexOf('+');
+                        if (plus > 0) text = text.Substring(0, plus).Trim();
+                        if (text.Length > 0) return text;
+                    }
+
+                    var version = assembly.GetName().Version;
+                    if (version != null) return version.ToString(3);
+                }
+                catch
+                {
+                    // Fall through to the generic label.
+                }
+
+                return "unknown";
+            }
+        }
+
         private static void PrintBanner()
         {
-            Console.WriteLine("Watt.Setup 2.2.6 - per-user installer/uninstaller");
+            Console.WriteLine("Watt.Setup " + ProductVersion + " - per-user installer/uninstaller");
             Console.WriteLine("No administrator rights are required.");
             Console.WriteLine();
         }
@@ -161,9 +197,17 @@ namespace Watt.Setup
                 ? DefaultInstallDir()
                 : Path.GetFullPath(Environment.ExpandEnvironmentVariables(installDir));
 
-            if (SamePath(sourceDir, installDir))
+            if (SamePath(sourceDir, installDir) || IsSameOrParent(installDir, sourceDir) ||
+                IsSameOrParent(installDir, baseDir))
             {
-                throw new InvalidOperationException("The installer must not run from the installation directory.");
+                throw new InvalidOperationException(
+                    "The installation directory must not contain the release folder. " +
+                    "Choose an empty folder or the default location.");
+            }
+
+            if (IsPathRoot(installDir))
+            {
+                throw new InvalidOperationException("The installation directory must not be a drive root.");
             }
 
             Console.WriteLine("Installing " + ProductName + "...");
@@ -274,6 +318,35 @@ namespace Watt.Setup
                 ? ResolveInstalledDir()
                 : Path.GetFullPath(Environment.ExpandEnvironmentVariables(installDir));
             var installedExe = Path.Combine(installDir, "Watt.exe");
+            var setupBaseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+
+            // Never delete a folder that is not recognisably this installation. Without this
+            // check a mistyped "--install-dir D:\Documents" would recursively delete user data.
+            if (Directory.Exists(installDir))
+            {
+                if (IsPathRoot(installDir))
+                {
+                    Console.Error.WriteLine("ERROR: refusing to uninstall a drive root: " + installDir);
+                    return 3;
+                }
+
+                if (IsSameOrParent(installDir, setupBaseDir) ||
+                    IsSameOrParent(installDir, Path.Combine(setupBaseDir, "app")))
+                {
+                    Console.Error.WriteLine("ERROR: refusing to uninstall the folder the installer is running from:");
+                    Console.Error.WriteLine("       " + installDir);
+                    return 3;
+                }
+
+                if (!LooksLikeWattInstall(installDir))
+                {
+                    Console.Error.WriteLine("ERROR: " + installDir + " does not look like a Watt installation.");
+                    Console.Error.WriteLine("       Watt.exe / Watt.Plugin.Contracts.dll was not found there.");
+                    Console.Error.WriteLine("       Refusing to delete it; remove the folder manually if it is a");
+                    Console.Error.WriteLine("       broken partial install.");
+                    return 3;
+                }
+            }
 
             if (!assumeYes)
             {
@@ -290,18 +363,39 @@ namespace Watt.Setup
             Console.WriteLine("Uninstalling " + ProductName + "...");
             Console.WriteLine("  target : " + installDir);
 
-            if (stop) StopWattProcesses();
+            var installFound = Directory.Exists(installDir);
+            if (!installFound)
+                Console.WriteLine("  note   : no Watt installation found at the target path");
+
+            if (stop && (installFound || SamePath(installDir, DefaultInstallDir())))
+                StopWattProcesses();
 
             if (autostart)
             {
                 try
                 {
-                    using (var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
+                    var registered = ReadRunValue();
+                    if (registered == null)
                     {
-                        if (key != null && key.GetValue(RunValueName) != null)
+                        // Nothing registered.
+                    }
+                    else
+                    {
+                        var registeredExe = registered.Trim().Trim('"');
+                        if (IsSameOrParent(installDir, registeredExe))
                         {
-                            key.DeleteValue(RunValueName, false);
-                            Console.WriteLine("  removed autostart");
+                            using (var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
+                            {
+                                if (key != null && key.GetValue(RunValueName) != null)
+                                {
+                                    key.DeleteValue(RunValueName, false);
+                                    Console.WriteLine("  removed autostart");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("  kept autostart (it points to another copy: " + registered + ")");
                         }
                     }
                 }
@@ -311,35 +405,126 @@ namespace Watt.Setup
                 }
             }
 
-            if (shortcut) RemoveShortcut();
-            if (notify) RemoveNotifyIconEntries(installedExe);
+            if (shortcut && installFound) RemoveShortcut();
+            if (notify && installFound) RemoveNotifyIconEntries(installedExe);
 
+            var failed = false;
             if (Directory.Exists(installDir))
             {
-                Directory.Delete(installDir, true);
-                Console.WriteLine("  removed install directory");
+                try
+                {
+                    Directory.Delete(installDir, true);
+                    Console.WriteLine("  removed install directory");
+                }
+                catch (Exception ex)
+                {
+                    failed = true;
+                    Console.Error.WriteLine("WARN: could not remove install directory: " + ex.Message);
+                    Console.Error.WriteLine("      Close any program using files in that folder and retry.");
+                }
             }
 
             if (!keepData)
             {
-                try
+                // Do not purge the shared per-user cache/preferences when the requested install
+                // path does not exist: a mistyped --install-dir must not destroy another copy's
+                // data. The default path is still cleaned (it is Watt's own location).
+                if (!installFound && !SamePath(installDir, DefaultInstallDir()))
                 {
-                    var dataDir = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Watt");
-                    if (Directory.Exists(dataDir))
-                    {
-                        Directory.Delete(dataDir, true);
-                        Console.WriteLine("  removed local data (cache and user plugins)");
-                    }
+                    Console.WriteLine("  local data kept (target install path was not found)");
                 }
-                catch (Exception ex)
+                else
                 {
-                    Console.Error.WriteLine("WARN: could not remove local data: " + ex.Message);
+                    try
+                    {
+                        var dataDir = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Watt");
+                        if (Directory.Exists(dataDir))
+                        {
+                            Directory.Delete(dataDir, true);
+                            Console.WriteLine("  removed local data (cache and user plugins)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine("WARN: could not remove local data: " + ex.Message);
+                    }
                 }
             }
 
             Console.WriteLine("OK - " + ProductName + " is uninstalled for the current user.");
-            return 0;
+            return failed ? 1 : 0;
+        }
+
+        private static string ReadRunValue()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(RunKeyPath))
+                {
+                    if (key == null) return null;
+                    var value = key.GetValue(RunValueName) as string;
+                    return string.IsNullOrWhiteSpace(value) ? null : value;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Allows the default per-user folder, and custom folders only when they
+        /// contain recognisable Watt runtime files.</summary>
+        private static bool LooksLikeWattInstall(string directory)
+        {
+            try
+            {
+                if (SamePath(directory, DefaultInstallDir())) return true;
+
+                return File.Exists(Path.Combine(directory, "Watt.exe")) ||
+                       File.Exists(Path.Combine(directory, "Watt.Plugin.Contracts.dll")) ||
+                       File.Exists(Path.Combine(directory, "Watt.Plugin.Support.dll"));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>True when the path is a drive or UNC share root.</summary>
+        private static bool IsPathRoot(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            try
+            {
+                var full = Path.GetFullPath(path).TrimEnd('\\');
+                var root = Path.GetPathRoot(Path.GetFullPath(path));
+                if (string.IsNullOrEmpty(root)) return false;
+                return string.Equals(full, root.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>True when <paramref name="parent"/> is the same path as, or an ancestor of,
+        /// <paramref name="child"/>. Used to avoid deleting a folder that contains the running
+        /// installer or an unrelated installation.</summary>
+        private static bool IsSameOrParent(string parent, string child)
+        {
+            if (string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(child)) return false;
+            try
+            {
+                var parentFull = Path.GetFullPath(parent).TrimEnd('\\');
+                var childFull = Path.GetFullPath(child).TrimEnd('\\');
+                if (string.Equals(parentFull, childFull, StringComparison.OrdinalIgnoreCase)) return true;
+                return childFull.StartsWith(parentFull + "\\", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void ValidatePayload(string sourceDir)
@@ -558,6 +743,7 @@ namespace Watt.Setup
             Console.WriteLine("Usage:");
             Console.WriteLine("  Watt.Setup.exe install   [--install-dir DIR] [--no-start] [--no-autostart] [--no-shortcut] [--no-stop]");
             Console.WriteLine("  Watt.Setup.exe uninstall [--install-dir DIR] [--yes] [--keep-data] [--no-autostart] [--no-shortcut] [--no-notify] [--no-stop]");
+            Console.WriteLine("  Watt.Setup.exe --version");
             Console.WriteLine();
             Console.WriteLine("Run without arguments for the interactive menu.");
             Console.WriteLine("Command line: Watt.Setup.exe install | uninstall [options]");

@@ -93,6 +93,7 @@ namespace Watt.UI
             // and hide the panel we are showing right now.
             var generation = ++_animationGeneration;
             _hiding = false;
+            ApplyLayoutLimits();
             BeginAnimation(OpacityProperty, null);
             _slide.BeginAnimation(TranslateTransform.YProperty, null);
             Opacity = 0;
@@ -136,6 +137,7 @@ namespace Watt.UI
         /// <summary>Called on every battery refresh. Repositions if the panel grew or shrank.</summary>
         public void UpdateDevices(System.Collections.Generic.IReadOnlyList<PeripheralDevice> devices, bool scanning)
         {
+            ApplyLayoutLimits();
             _panel.SetDevices(devices, scanning);
             if (!IsVisible) return;
             UpdateLayout();
@@ -144,6 +146,7 @@ namespace Watt.UI
 
         public void ApplyTheme(Theme theme)
         {
+            ApplyLayoutLimits();
             _panel.ApplyTheme(theme);
             if (IsVisible)
             {
@@ -192,6 +195,16 @@ namespace Watt.UI
             // shadow margin may hang slightly over the taskbar, which is fine for a flyout.
             Left = work.Right - ScreenInset - ShadowMargin - PanelCardWidth;
             Top = work.Bottom - ScreenInset + ShadowMargin - height;
+        }
+
+        /// <summary>Leaves room for the header, card padding and screen inset when the device
+        /// list is long; the list itself scrolls instead of pushing the panel off screen.</summary>
+        private void ApplyLayoutLimits()
+        {
+            var work = SystemParameters.WorkArea;
+            // A headless session can report a zero-sized work area; leave the list unbounded
+            // there so --snapshot still renders every row.
+            _panel.SetMaxContentHeight(work.Height > 300 ? work.Height - 160 : double.PositiveInfinity);
         }
 
         private static class NativeMethods

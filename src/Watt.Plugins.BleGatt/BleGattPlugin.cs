@@ -44,11 +44,13 @@ namespace Watt.Plugins.BleGatt
 
         private const string AepAddress = "System.Devices.Aep.DeviceAddress";
         private const string AepIsConnected = "System.Devices.Aep.IsConnected";
+        private const string AepBatteryPlusCharging = "System.Devices.BatteryPlusCharging";
 
         private static readonly string[] RequestedProperties =
         {
             AepAddress,
-            AepIsConnected
+            AepIsConnected,
+            AepBatteryPlusCharging
         };
 
         public override string Id
@@ -95,13 +97,12 @@ namespace Watt.Plugins.BleGatt
         public override async Task<PluginReadResult> ReadAsync(IPluginContext context,
             CancellationToken cancellationToken)
         {
-            var adapterPresent = false;
             try
             {
                 if (cancellationToken.IsCancellationRequested) return PluginReadResult.Empty();
 
-                adapterPresent = await IsBluetoothAdapterPresentAsync().ConfigureAwait(false);
-                if (!adapterPresent) return PluginReadResult.Absent();
+                var adapterState = await IsBluetoothAdapterPresentAsync().ConfigureAwait(false);
+                if (adapterState == false) return PluginReadResult.Absent();
 
                 var results = new List<PeripheralDevice>();
 
@@ -142,9 +143,15 @@ namespace Watt.Plugins.BleGatt
                         if (ProviderUtil.TryGetBool(properties, AepIsConnected, out connected) && !connected)
                             continue;
 
+                        // The standard Battery Level characteristic says nothing about charging.
+                        // Windows already knows the charging bit from the same AEP property the
+                        // Windows plugin reads; carrying it here keeps the lightning bolt visible
+                        // even though this higher-priority fresh reading wins the merge.
+                        var charging = TryReadCharging(properties);
+
                         attempted++;
                         var reading = await TryReadBatteryLevelAsync(information.Id, address, name,
-                            cancellationToken).ConfigureAwait(false);
+                            charging, cancellationToken).ConfigureAwait(false);
                         if (reading != null) results.Add(reading);
                     }
                     catch
@@ -159,22 +166,36 @@ namespace Watt.Plugins.BleGatt
             }
             catch
             {
-                // Never throw into the host. Only claim "absent" when we could not confirm a radio.
-                return adapterPresent ? PluginReadResult.Empty() : PluginReadResult.Absent();
+                // Never throw into the host. A failed read is not proof that the transport is
+                // gone; only an explicit "no radio" probe result reports Absent.
+                return PluginReadResult.Empty();
             }
         }
 
-        private static async Task<bool> IsBluetoothAdapterPresentAsync()
+        /// <summary>
+        /// Returns true when a default Bluetooth adapter exists, false when Windows explicitly
+        /// reports no radio, and null when the probe timed out or failed (unknown). A slow WinRT
+        /// call must not be treated as "transport gone", or the host would delete cached devices
+        /// after three scans.
+        /// </summary>
+        private static async Task<bool?> IsBluetoothAdapterPresentAsync()
         {
             try
             {
-                var adapter = await ProviderUtil.AwaitOrNullAsync(
-                    WinRtAsync.AsTask(BluetoothAdapter.GetDefaultAsync()), AdapterTimeoutMs).ConfigureAwait(false);
+                var task = WinRtAsync.AsTask(BluetoothAdapter.GetDefaultAsync());
+                var completed = await Task.WhenAny(task, Task.Delay(AdapterTimeoutMs)).ConfigureAwait(false);
+                if (completed != task)
+                {
+                    ProviderUtil.Observe(task);
+                    return null;
+                }
+
+                var adapter = await task.ConfigureAwait(false);
                 return adapter != null;
             }
             catch
             {
-                return false;
+                return null;
             }
         }
 
@@ -211,8 +232,15 @@ namespace Watt.Plugins.BleGatt
             }
         }
 
+        private static bool TryReadCharging(IReadOnlyDictionary<string, object> properties)
+        {
+            // BatteryPlusCharging: 101-200 = (percent - 100) while charging; 201 = unknown.
+            var plusCharging = ProviderUtil.TryGetInt(properties, AepBatteryPlusCharging);
+            return plusCharging.HasValue && plusCharging.Value > 100 && plusCharging.Value <= 200;
+        }
+
         private static async Task<PeripheralDevice> TryReadBatteryLevelAsync(string deviceId, string address,
-            string name, CancellationToken cancellationToken)
+            string name, bool charging, CancellationToken cancellationToken)
         {
             // Devices that exposed the broken "increment on every read" characteristic must be
             // read from the Windows GATT cache (what Settings shows), not by forcing a new read.
@@ -221,17 +249,17 @@ namespace Watt.Plugins.BleGatt
             var guardKey = address ?? deviceId;
             if (BleBatteryGuard.IsQuirked(guardKey))
             {
-                var cached = await TryReadBatteryLevelAsync(deviceId, address, name, cancellationToken, true)
+                var cached = await TryReadBatteryLevelAsync(deviceId, address, name, charging, cancellationToken, true)
                     .ConfigureAwait(false);
                 if (cached != null) return cached;
             }
 
-            return await TryReadBatteryLevelAsync(deviceId, address, name, cancellationToken, false)
+            return await TryReadBatteryLevelAsync(deviceId, address, name, charging, cancellationToken, false)
                 .ConfigureAwait(false);
         }
 
         private static async Task<PeripheralDevice> TryReadBatteryLevelAsync(string deviceId, string address,
-            string name, CancellationToken cancellationToken, bool useCached)
+            string name, bool charging, CancellationToken cancellationToken, bool useCached)
         {
             if (string.IsNullOrEmpty(deviceId)) return null;
 
@@ -279,7 +307,7 @@ namespace Watt.Plugins.BleGatt
                                 effectiveAddress = ProviderUtil.FormatBluetoothAddress(bleDevice.BluetoothAddress);
 
                             var guardKey = effectiveAddress ?? deviceId;
-                            var effectiveLevel = BleBatteryGuard.NormalizeOrIgnore(guardKey, level.Value);
+                            var effectiveLevel = BleBatteryGuard.NormalizeOrIgnore(guardKey, level.Value, charging);
                             if (!effectiveLevel.HasValue) continue;
 
                             return Device(
@@ -287,7 +315,7 @@ namespace Watt.Plugins.BleGatt
                                 normalizedName,
                                 DeviceClassifier.Classify(normalizedName, null, null),
                                 DeviceClassifier.ClampPercent(effectiveLevel.Value),
-                                false,
+                                charging,
                                 effectiveAddress,
                                 true);
                         }

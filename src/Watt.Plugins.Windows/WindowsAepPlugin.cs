@@ -78,13 +78,12 @@ namespace Watt.Plugins.Windows
         public override async Task<PluginReadResult> ReadAsync(IPluginContext context,
             CancellationToken cancellationToken)
         {
-            var adapterPresent = false;
             try
             {
                 if (cancellationToken.IsCancellationRequested) return PluginReadResult.Empty();
 
-                adapterPresent = await IsBluetoothAdapterPresentAsync().ConfigureAwait(false);
-                if (!adapterPresent) return PluginReadResult.Absent();
+                var adapterState = await IsBluetoothAdapterPresentAsync().ConfigureAwait(false);
+                if (adapterState == false) return PluginReadResult.Absent();
 
                 var found = new Dictionary<string, PeripheralDevice>(StringComparer.OrdinalIgnoreCase);
                 var deadline = DateTime.UtcNow.AddMilliseconds(TotalBudgetMs);
@@ -132,26 +131,38 @@ namespace Watt.Plugins.Windows
             }
             catch
             {
-                // Never throw into the host. Only claim "absent" when we could not confirm a radio.
-                return adapterPresent ? PluginReadResult.Empty() : PluginReadResult.Absent();
+                // Never throw into the host. A failed read is not proof that the transport is
+                // gone; only an explicit "no radio" probe result reports Absent.
+                return PluginReadResult.Empty();
             }
         }
 
         /// <summary>
         /// AEP devices are present iff the Bluetooth radio (default adapter) exists. A machine
         /// without any Bluetooth hardware returns null from GetDefaultAsync.
+        ///
+        /// Returns null when the probe itself timed out or failed: that is "unknown", not
+        /// "no radio". Treating a slow WinRT call as absent would make the host delete cached
+        /// devices after three scans even though the hardware is fine.
         /// </summary>
-        private static async Task<bool> IsBluetoothAdapterPresentAsync()
+        private static async Task<bool?> IsBluetoothAdapterPresentAsync()
         {
             try
             {
-                var adapter = await ProviderUtil.AwaitOrNullAsync(
-                    WinRtAsync.AsTask(BluetoothAdapter.GetDefaultAsync()), AdapterTimeoutMs).ConfigureAwait(false);
+                var task = WinRtAsync.AsTask(BluetoothAdapter.GetDefaultAsync());
+                var completed = await Task.WhenAny(task, Task.Delay(AdapterTimeoutMs)).ConfigureAwait(false);
+                if (completed != task)
+                {
+                    ProviderUtil.Observe(task);
+                    return null;
+                }
+
+                var adapter = await task.ConfigureAwait(false);
                 return adapter != null;
             }
             catch
             {
-                return false;
+                return null;
             }
         }
 

@@ -18,7 +18,7 @@ namespace Watt.Battery
     {
         private const int HardTimeoutMs = 20000;
 
-        internal static void Run(string outputFile, IEnumerable<string> pluginDirectories)
+        internal static bool Run(string outputFile, IEnumerable<string> pluginDirectories)
         {
             var devices = new List<PeripheralDevice>();
             var plugins = new List<PluginInfo>();
@@ -63,10 +63,11 @@ namespace Watt.Battery
             }
 
             var elapsedMs = (int)(DateTime.UtcNow - started).TotalMilliseconds;
-            WriteFileSafely(outputFile, BuildJson(devices, plugins, issues, error, elapsedMs));
+            var written = WriteFileSafely(outputFile, BuildJson(devices, plugins, issues, error, elapsedMs));
+            return written && string.IsNullOrEmpty(error);
         }
 
-        internal static void WritePluginList(string outputFile, IEnumerable<string> pluginDirectories)
+        internal static bool WritePluginList(string outputFile, IEnumerable<string> pluginDirectories)
         {
             var started = DateTime.UtcNow;
             var builder = new StringBuilder();
@@ -107,7 +108,7 @@ namespace Watt.Battery
 
             builder.AppendLine();
             builder.AppendLine("elapsedMs: " + (int)(DateTime.UtcNow - started).TotalMilliseconds);
-            WriteFileSafely(outputFile, builder.ToString());
+            return WriteFileSafely(outputFile, builder.ToString());
         }
 
         private static IEnumerable<PluginInfo> EnumeratePluginInfo(PluginHost host)
@@ -236,9 +237,9 @@ namespace Watt.Battery
             return exception.GetType().Name + ": " + exception.Message;
         }
 
-        private static void WriteFileSafely(string outputFile, string contents)
+        private static bool WriteFileSafely(string outputFile, string contents)
         {
-            if (string.IsNullOrWhiteSpace(outputFile)) return;
+            if (string.IsNullOrWhiteSpace(outputFile)) return false;
 
             try
             {
@@ -247,10 +248,13 @@ namespace Watt.Battery
                     Directory.CreateDirectory(directory);
 
                 File.WriteAllText(outputFile, contents, new UTF8Encoding(false));
+                return true;
             }
             catch
             {
-                // The self test has no other reporting channel; failing to write is not fatal.
+                // The caller turns this into a non-zero exit code; a diagnostic without its
+                // report file is a failed diagnostic, not a silent success.
+                return false;
             }
         }
     }

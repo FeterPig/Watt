@@ -46,8 +46,10 @@ namespace Watt.Diagnostics
             internal bool Connected;
         }
 
-        internal static void Run(string outputFile, IEnumerable<string> pluginDirectories)
+        internal static bool Run(string outputFile, IEnumerable<string> pluginDirectories)
         {
+            if (string.IsNullOrWhiteSpace(outputFile)) return false;
+
             var report = new StringBuilder();
             report.AppendLine("Watt hardware diagnostics");
             report.AppendLine("time : " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
@@ -78,10 +80,13 @@ namespace Watt.Diagnostics
             try
             {
                 File.WriteAllText(outputFile, report.ToString(), new UTF8Encoding(false));
+                return true;
             }
             catch
             {
-                // diagnostics must never crash the caller
+                // Diagnostics must never crash the caller; the non-zero exit code reports the
+                // missing report file to automation.
+                return false;
             }
         }
 
@@ -377,29 +382,36 @@ namespace Watt.Diagnostics
 
                     foreach (var service in servicesResult.Services)
                     {
-                        var characteristics = ProviderUtil.AwaitOrNullAsync(
-                            WinRtAsync.AsTask(service.GetCharacteristicsForUuidAsync(
-                                BatteryLevelCharacteristicUuid, BluetoothCacheMode.Uncached)), 2500)
-                            .GetAwaiter().GetResult();
-                        if (characteristics == null ||
-                            characteristics.Status != GattCommunicationStatus.Success)
-                            continue;
-
-                        foreach (var characteristic in characteristics.Characteristics)
+                        try
                         {
-                            var read = ProviderUtil.AwaitOrNullAsync(
-                                WinRtAsync.AsTask(characteristic.ReadValueAsync(BluetoothCacheMode.Uncached)),
-                                2500).GetAwaiter().GetResult();
-                            if (read == null || read.Status != GattCommunicationStatus.Success) continue;
+                            var characteristics = ProviderUtil.AwaitOrNullAsync(
+                                WinRtAsync.AsTask(service.GetCharacteristicsForUuidAsync(
+                                    BatteryLevelCharacteristicUuid, BluetoothCacheMode.Uncached)), 2500)
+                                .GetAwaiter().GetResult();
+                            if (characteristics == null ||
+                                characteristics.Status != GattCommunicationStatus.Success)
+                                continue;
 
-                            using (var reader = DataReader.FromBuffer(read.Value))
+                            foreach (var characteristic in characteristics.Characteristics)
                             {
-                                var percent = reader.ReadByte();
-                                report.AppendLine("    BATTERY = " + percent + "%");
+                                var read = ProviderUtil.AwaitOrNullAsync(
+                                    WinRtAsync.AsTask(characteristic.ReadValueAsync(BluetoothCacheMode.Uncached)),
+                                    2500).GetAwaiter().GetResult();
+                                if (read == null || read.Status != GattCommunicationStatus.Success ||
+                                    read.Value == null)
+                                    continue;
+
+                                using (var reader = DataReader.FromBuffer(read.Value))
+                                {
+                                    var percent = reader.ReadByte();
+                                    report.AppendLine("    BATTERY = " + percent + "%");
+                                }
                             }
                         }
-
-                        service.Dispose();
+                        finally
+                        {
+                            service.Dispose();
+                        }
                     }
                 }
                 catch (Exception ex)

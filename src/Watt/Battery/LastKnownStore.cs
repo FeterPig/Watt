@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using Watt.Models;
+using Watt.Plugins.Support;
 
 namespace Watt.Battery
 {
@@ -22,11 +23,7 @@ namespace Watt.Battery
 
         private static string CachePath
         {
-            get
-            {
-                var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                return Path.Combine(local, "Watt", "last-known.json");
-            }
+            get { return WattPaths.DataFile("last-known.json"); }
         }
 
         internal static PeripheralDevice TryGet(string id, out DateTime savedAtUtc, out string pluginId)
@@ -61,18 +58,34 @@ namespace Watt.Battery
             lock (Sync)
             {
                 EnsureLoaded();
-                _entries[device.Id] = new KnownDeviceEntry
+                if (UpsertLocked(device, string.IsNullOrEmpty(device.SourceId) ? pluginId : device.SourceId,
+                        savedAtUtc))
+                    SaveLocked();
+            }
+        }
+
+        /// <summary>
+        /// Saves the merged winners of one scan with a single file write. Each device's
+        /// <see cref="PeripheralDevice.SourceId"/> becomes the cache owner, so the row that is
+        /// displayed is the row that survives a restart.
+        /// </summary>
+        internal static void SaveMany(IReadOnlyList<PeripheralDevice> devices, DateTime savedAtUtc)
+        {
+            if (devices == null || devices.Count == 0) return;
+
+            lock (Sync)
+            {
+                EnsureLoaded();
+                var changed = false;
+                for (var i = 0; i < devices.Count; i++)
                 {
-                    Id = device.Id,
-                    Name = device.Name,
-                    Kind = device.Kind.ToString(),
-                    Percent = device.BatteryPercent.Value,
-                    Charging = device.IsCharging,
-                    Address = device.Address,
-                    PluginId = pluginId,
-                    SavedAtTicksUtc = savedAtUtc.ToUniversalTime().Ticks
-                };
-                SaveLocked();
+                    var device = devices[i];
+                    if (device == null || string.IsNullOrEmpty(device.Id) || !device.BatteryPercent.HasValue)
+                        continue;
+                    if (UpsertLocked(device, device.SourceId, savedAtUtc)) changed = true;
+                }
+
+                if (changed) SaveLocked();
             }
         }
 
@@ -141,16 +154,55 @@ namespace Watt.Battery
             return result;
         }
 
+        /// <summary>Test hook: drops the in-memory view so the next access reloads the file.</summary>
+        internal static void ResetForTests()
+        {
+            lock (Sync)
+            {
+                _entries = null;
+                _loaded = false;
+            }
+        }
+
+        private static bool UpsertLocked(PeripheralDevice device, string pluginId, DateTime savedAtUtc)
+        {
+            var percent = device.BatteryPercent.Value;
+            if (percent < 0) percent = 0;
+            if (percent > 100) percent = 100;
+
+            KnownDeviceEntry existing;
+            if (string.IsNullOrEmpty(pluginId) && _entries.TryGetValue(device.Id, out existing))
+                pluginId = existing.PluginId;
+
+            _entries[device.Id] = new KnownDeviceEntry
+            {
+                Id = device.Id,
+                Name = device.Name,
+                Kind = device.Kind.ToString(),
+                Percent = percent,
+                Charging = device.IsCharging,
+                Address = device.Address,
+                PluginId = pluginId,
+                SavedAtTicksUtc = savedAtUtc.ToUniversalTime().Ticks
+            };
+            return true;
+        }
+
         private static PeripheralDevice ToDevice(KnownDeviceEntry entry)
         {
             DeviceKind kind;
             if (!Enum.TryParse(entry.Kind, out kind)) kind = DeviceKind.Other;
+
+            var percent = entry.Percent;
+            if (percent < 0) percent = 0;
+            if (percent > 100) percent = 100;
+
             return new PeripheralDevice
             {
                 Id = entry.Id,
                 Name = entry.Name,
                 Kind = kind,
-                BatteryPercent = entry.Percent,
+                BatteryPercent = percent,
                 IsCharging = entry.Charging,
                 Address = entry.Address,
                 SourceId = entry.PluginId
@@ -172,12 +224,21 @@ namespace Watt.Battery
                     var serializer = new DataContractJsonSerializer(typeof(KnownDeviceCacheFile));
                     var file = serializer.ReadObject(stream) as KnownDeviceCacheFile;
                     if (file == null || file.Devices == null) return;
+                    var pruned = false;
                     foreach (var entry in file.Devices)
                     {
                         if (entry == null || string.IsNullOrEmpty(entry.Id)) continue;
-                        if (DateTime.UtcNow - entry.SavedAtUtc > MaxAge) continue;
+                        if (DateTime.UtcNow - entry.SavedAtUtc > MaxAge)
+                        {
+                            pruned = true;
+                            continue;
+                        }
                         _entries[entry.Id] = entry;
                     }
+
+                    // Drop stale entries from the file once, so a cache used by a long-lived
+                    // install does not keep devices that expired weeks ago.
+                    if (pruned) SaveLocked();
                 }
             }
             catch
@@ -196,14 +257,11 @@ namespace Watt.Battery
                     if (DateTime.UtcNow - entry.SavedAtUtc <= MaxAge) file.Devices.Add(entry);
                 }
 
-                var directory = Path.GetDirectoryName(CachePath);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
                 using (var stream = new MemoryStream())
                 {
                     var serializer = new DataContractJsonSerializer(typeof(KnownDeviceCacheFile));
                     serializer.WriteObject(stream, file);
-                    File.WriteAllBytes(CachePath, stream.ToArray());
+                    AtomicFile.WriteAllBytes(CachePath, stream.ToArray());
                 }
             }
             catch

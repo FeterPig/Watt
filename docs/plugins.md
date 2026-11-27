@@ -1,6 +1,6 @@
 # Watt 插件开发指南
 
-适用版本：Watt 2.2.6，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
+适用版本：Watt 2.3.0，插件契约 `Watt.Plugin.Contracts` 1.0（net48）。
 
 Watt 的所有电量来源都是插件：内置插件与第三方插件使用同一套公共契约，从同一批目录加载，由同一个宿主并行调度。你写一个插件，就等于给 Watt 增加一种新的“读取外设电量”的方法。
 
@@ -86,7 +86,7 @@ BatteryService.ScanAsync
 ### 2.2 加载规则
 
 - 枚举每个目录下的 `*.dll`；跳过 `Watt.Plugin.Contracts.dll`、`Watt.Plugin.Support.dll`；
-- 用 `Assembly.LoadFrom` 加载（失败时回退为字节加载）；只实例化 public、非抽象、有参数构造函数的 `IBatteryPlugin` 类型；
+- 用 `Assembly.LoadFrom` 加载（失败时回退为字节加载）；只实例化 public、非抽象、带**公共无参构造函数**的 `IBatteryPlugin` 类型；
 - 同一插件 **Id** 后加载的覆盖先加载的；被覆盖的旧实例会被丢弃；
 - DLL 加载失败、类型构造失败只记录为加载问题，不影响其他插件；
 - 插件实例在进程内运行，随 Watt 退出而结束；**没有热加载/卸载**，替换 DLL 后必须重启 Watt。
@@ -147,7 +147,7 @@ type "%TEMP%\selftest.json"
 - 示例是假数据，验证后从 `plugins` 删除 DLL 并重启。
 
 > 从源码运行时，先执行 `.\build.cmd`，然后用
-> `.\dist\Watt-2.2.6-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
+> `.\dist\Watt-2.3.0-win-x64\app\Watt.exe --selftest ...` 验证；也可以把 `--plugin-dir` 指向示例 DLL 所在目录。
 
 ---
 
@@ -222,7 +222,7 @@ public sealed class PluginReadResult
 ```
 
 - `Absent()`：蓝牙无线电、接收器、HID 接口等**整个传输层**不可用；
-- `Empty()`：传输层在，但本轮没有设备需要报告；
+- `Empty()`：传输层在，但本轮没有设备需要报告；**插件内部的探测超时/异常也应返回 `Empty()`**，因为超时不能证明设备被拔掉，返回 `Absent()` 会让宿主在连续 3 次后清理缓存；
 - `Observed(...)`：传输层在，返回观察到的设备列表；设备电量可以为 `null`。
 
 ### 5.4 `IPluginContext` / `IPluginLogger`
@@ -324,6 +324,7 @@ return new PeripheralDevice
 - 自动刷新（60 秒扫描）：无论 `IsConnected` 为何，`null` 电量都沿用 last-known，休眠设备保持可见；
 - 手动刷新（面板按钮）：先等待当前扫描结束，再重新扫描并**重新加载整个列表**；
   - `IsConnected == false` 的缓存设备立即从列表/缓存移除；
+  - 如果同一轮另一个插件读到了同一设备的新电量，以新读数为准，不因某一个传输报告断开而删除缓存；
   - `IsConnected == null` 的旧插件设备保留，避免误删；
   - 新观察到且带电量（或缓存）的设备会加入列表。
 
@@ -347,6 +348,7 @@ return new PeripheralDevice
 多个插件可能观察到同一台设备：
 
 - 优先按规范化蓝牙地址合并，其次按规范化名称；
+- 两台**都带真实 MAC** 的设备即使名称完全相同也不会合并；只有一方缺少地址时才用名称兜底，避免把两台同名外设合并成一行；
 - 同一来源有多个结果时，Priority 数字小的优先；
 - **新读数优先于旧缓存**（避免 Windows 缓存的旧值压过 GATT 新值）；
 - 设备类型/名称/地址缺失时由其他来源补全；
@@ -517,6 +519,9 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 | `--selftest <file.json>` | 加载插件、扫描一次并输出 JSON（设备 + 插件 + 加载问题） |
 | `--diagnose <file.txt>` | 蓝牙 AEP/HFP、HID 集合、原始报文、各插件读取结果 |
 | `--plugin-dir <dir>` | 额外插件目录，可重复或用 `;` 分隔 |
+| `WATT_DATA_DIR`（环境变量） | 把整个数据目录（`last-known.json`、`devices.json`、`ble-battery-guard.txt`、`plugins\`、`plugin-data\`）重定向到指定绝对路径；测试/自动化用，正常使用不需要设置 |
+
+诊断命令在参数缺少值或输出文件无法写入时返回非零退出码（`2` = 参数错误，`1` = 运行或写入失败），便于自动化断言。
 
 ### 10.2 `--selftest` 输出
 
@@ -545,7 +550,7 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 
 ### 10.4 日志
 
-- `<Watt.exe 目录>\watt-startup.log`；
+- `<Watt.exe 目录>\watt-startup.log`；超过 1 MB 时轮换为 `watt-startup.log.1`，只保留一份旧日志；
 - 插件日志格式：`[plugin:<Id>] INFO/WARN/ERROR ...`；
 - 宿主日志：`plugin loaded: ...`、`plugin issue: ...`、`plugin <id> timed out ...`、`battery plugins loaded: N, issues: M`。
 
@@ -596,7 +601,7 @@ dotnet build .\sdk\sample\Watt.Plugin.Sample\Watt.Plugin.Sample.csproj -c Releas
 4. 插件之间无法协调“谁覆盖了哪些设备”（旧的 GATT covered-device 机制已不存在）；
 5. `IPluginLogger.Error` 不记录堆栈；日志直写文件，无限流；
 6. 同 Id 覆盖时被覆盖的实例也会被构造；同 Id 共用 DataDirectory；
-7. 按名称合并可能误合并两台同名且无地址的设备；
+7. 按名称合并仍可能误合并两台同名且**都缺少地址**的设备；两台都有真实 MAC 的设备不会仅因名称相同而合并；
 8. 只有 `null` 电量且无缓存的设备不会显示（不支持“电量未知”占位）；
 9. 超时不会终止插件线程；
 10. `Absent()` 是插件级语义，不能表达“某台设备暂时不在”。

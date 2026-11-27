@@ -15,6 +15,7 @@ namespace Watt.Tray
         private readonly NotifyIcon _notifyIcon;
         private readonly ContextMenuStrip _menu;
         private readonly ToolStripMenuItem _autostartItem;
+        private readonly ToolStripMenuItem _restoreHiddenItem;
         private bool _disposed;
 
         public TrayController()
@@ -24,6 +25,12 @@ namespace Watt.Tray
 
             _autostartItem = new ToolStripMenuItem("开机自启");
             _autostartItem.Click += delegate { Raise(AutostartToggleRequested); };
+
+            // Accidental clicks on a row's small x button hide a device permanently. This item
+            // is the way back without editing devices.json by hand.
+            _restoreHiddenItem = new ToolStripMenuItem("恢复已隐藏设备");
+            _restoreHiddenItem.Enabled = false;
+            _restoreHiddenItem.Click += delegate { Raise(RestoreHiddenRequested); };
 
             var exitItem = new ToolStripMenuItem("退出 Watt");
             exitItem.Click += delegate { Raise(ExitRequested); };
@@ -38,6 +45,7 @@ namespace Watt.Tray
             };
             _menu.Items.Add(openPluginsItem);
             _menu.Items.Add(_autostartItem);
+            _menu.Items.Add(_restoreHiddenItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(exitItem);
 
@@ -54,6 +62,7 @@ namespace Watt.Tray
         public event EventHandler ExitRequested;
         public event EventHandler AutostartToggleRequested;
         public event EventHandler OpenPluginFolderRequested;
+        public event EventHandler RestoreHiddenRequested;
 
         public Icon CurrentIcon { get; private set; }
 
@@ -93,6 +102,13 @@ namespace Watt.Tray
         public void SetAutostart(bool enabled)
         {
             _autostartItem.Checked = enabled;
+        }
+
+        /// <summary>Enables the "restore hidden devices" entry only while something is hidden.</summary>
+        public void SetRestoreHiddenEnabled(bool enabled)
+        {
+            if (_disposed) return;
+            _restoreHiddenItem.Enabled = enabled;
         }
 
         public void SetTooltip(string text)

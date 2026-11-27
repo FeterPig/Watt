@@ -1,7 +1,7 @@
 # 构建、安装与卸载
 
 Watt 2.2.6 起不再使用 PowerShell 安装脚本。仓库只负责构建；安装/卸载入口只在构建产物
-`dist\Watt-2.2.6-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
+`dist\Watt-2.3.0-win-x64\` 中出现，由 C# 程序 `Watt.Setup.exe` 完成实际操作，无需管理员权限，
 也不需要修改 PowerShell 执行策略。
 
 ## 构建要求
@@ -21,7 +21,7 @@ Watt 2.2.6 起不再使用 PowerShell 安装脚本。仓库只负责构建；安
 build.cmd
 ```
 
-脚本会提示输入版本号，例如 `2.2.6`；该版本号不写死在脚本中，并会用于主程序、安装器、发行目录和 zip 文件名。也可以执行 `build.cmd 2.2.6` 跳过交互。
+脚本会提示输入版本号，例如 `2.3.0`；该版本号不写死在脚本中，并会用于主程序、安装器、发行目录和 zip 文件名。也可以执行 `build.cmd 2.3.0` 跳过交互。
 
 `build.cmd` 会：
 
@@ -31,7 +31,7 @@ build.cmd
 4. 生成发行版目录：
 
    ```
-   dist\Watt-2.2.6-win-x64\
+   dist\Watt-2.3.0-win-x64\
      Watt.Setup.exe              # 一级目录：安装/卸载程序
      README.md
      docs\
@@ -47,7 +47,7 @@ build.cmd
 
    运行时文件都在 `app\` 下，一级目录只有安装程序、README 和 docs；这样用户不会误双击主程序。
 
-5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.2.6-win-x64.zip`。
+5. 如果系统有 `tar.exe`，同时生成 `dist\Watt-2.3.0-win-x64.zip`。
 
 构建失败时脚本返回非零退出码；没有单独的“只编译不打包”参数，需要时直接 `dotnet build`
 单个工程即可。
@@ -61,7 +61,7 @@ build.cmd
 双击发行版根目录的 `Watt.Setup.exe`，控制台会显示交互菜单：
 
 ```
-Watt.Setup 2.2.6 - per-user installer/uninstaller
+Watt.Setup 2.3.0 - per-user installer/uninstaller
 
   1. 安装 / Install
   2. 卸载 / Uninstall
@@ -83,7 +83,7 @@ Watt.Setup.exe install
 `Watt.Setup.exe` 会：
 
 1. 停止已运行的 Watt；
-2. 保留安装目录本身，覆盖运行时文件并替换 `plugins\` 文件夹；
+2. 保留安装目录本身，覆盖运行时文件，并用发行包同名插件 DLL 覆盖 `plugins\` 中的内置插件（保留用户额外放置的 DLL）；
 3. 注册当前用户登录自启（`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Watt` 值）；
 4. 创建开始菜单快捷方式 `Watt.lnk`；
 5. 启动 Watt。
@@ -137,11 +137,13 @@ Watt.Setup.exe uninstall
 默认会先确认，然后：
 
 - 停止 Watt；
-- 删除 HKCU Run 自启值；
+- 删除 HKCU Run 自启值（仅当它指向本次卸载的目录；指向另一个 Watt 副本时保留）；
 - 删除开始菜单快捷方式；
 - 删除 `%LOCALAPPDATA%\Programs\Watt`；
 - 删除 `%LOCALAPPDATA%\Watt`（缓存和第三方插件数据）；
 - 清理该程序对应的 Windows 通知区域设置。
+
+卸载前会校验 `--install-dir` 确实是 Watt 安装：默认目录，或包含 `Watt.exe` / `Watt.Plugin.Contracts.dll` 的目录。普通文件夹、发行版目录本身或其 `app\` 子目录会被拒绝删除，退出码为 `3`，不会动里面的文件。目标路径不存在时不会停止正在运行的 Watt，也不会删除 `%LOCALAPPDATA%\Watt` 的共享数据，避免误删另一个副本的缓存与插件。
 
 非交互或保留数据：
 
@@ -156,6 +158,8 @@ Watt.Setup.exe uninstall --yes --keep-data
 | `--install-dir DIR` | 指定要删除的安装目录；默认从 HKCU Run 值推断，否则用默认目录 |
 | `--no-autostart` / `--no-shortcut` / `--no-notify` | 分别跳过注册表/快捷方式/通知区域清理 |
 | `--no-stop` | 不停止主程序（仅测试用） |
+
+安装器版本可以用 `Watt.Setup.exe --version` 或 `-v` 查看；帮助用 `--help`。
 
 ## 自启注册
 
@@ -175,7 +179,7 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Watt
 - **`dotnet` 找不到**：安装 .NET SDK 9，并确保 `dotnet` 在 PATH 中。
 - **构建提示找不到 `Windows.winmd`**：安装 Windows 10/11 SDK，或用
   `dotnet build ... -p:WinmdPath=...` 指定。
-- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.2.6-win-x64` 发行版目录运行
+- **安装时报“payload is incomplete”**：必须从 `dist\Watt-2.3.0-win-x64` 发行版目录运行
   `Watt.Setup.exe`，不要从源码目录运行。
 - **安装/卸载提示注册表访问被拒绝**：确认当前用户对 HKCU 有写权限；程序不会请求管理员权限。
 - **托盘图标在二级托盘里**：Watt 会重试并重新注册图标；如果升级后 Explorer 完全没有生成

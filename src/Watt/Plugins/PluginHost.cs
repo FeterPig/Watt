@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Watt.Plugins;
+using Watt.Plugins.Support;
 
 namespace Watt.Plugins
 {
@@ -180,7 +181,7 @@ namespace Watt.Plugins
                     var plugin = (IBatteryPlugin)Activator.CreateInstance(type);
                     if (plugin == null || string.IsNullOrWhiteSpace(plugin.Id)) continue;
 
-                    var context = CreateContext(plugin, dataRoot);
+                    var context = CreateContext(plugin, dataRoot, log);
                     var loaded = new LoadedPlugin
                     {
                         Plugin = plugin,
@@ -203,7 +204,7 @@ namespace Watt.Plugins
             }
         }
 
-        private static IPluginContext CreateContext(IBatteryPlugin plugin, string dataRoot)
+        private static IPluginContext CreateContext(IBatteryPlugin plugin, string dataRoot, Action<string> log)
         {
             var root = string.IsNullOrEmpty(dataRoot) ? WattDataDirectory : dataRoot;
             var safeId = Sanitize(plugin.Id);
@@ -217,7 +218,7 @@ namespace Watt.Plugins
                 // A read-only location only affects plugins that want to persist state.
             }
 
-            return new PluginContext(dataDirectory, new PluginLogger(plugin.Id));
+            return new PluginContext(dataDirectory, new PluginLogger(plugin.Id, log));
         }
 
         private List<string> BuildSearchDirectories(IEnumerable<string> extraDirectories)
@@ -227,8 +228,7 @@ namespace Watt.Plugins
 
             try
             {
-                AddDirectory(result, Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Watt", "plugins"));
+                AddDirectory(result, Path.Combine(WattPaths.DataDirectory, "plugins"));
             }
             catch
             {
@@ -261,8 +261,7 @@ namespace Watt.Plugins
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Watt");
+                return WattPaths.DataDirectory;
             }
         }
 
@@ -349,15 +348,7 @@ namespace Watt.Plugins
                     _log(text);
                     return;
                 }
-                try
-                {
-                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "watt-startup.log"),
-                        DateTime.Now.ToString("HH:mm:ss.fff") + " " + text + Environment.NewLine);
-                }
-                catch
-                {
-                    // ignore
-                }
+                Watt.Services.LogFile.Write(DateTime.Now.ToString("HH:mm:ss.fff") + " " + text);
             }
         }
     }

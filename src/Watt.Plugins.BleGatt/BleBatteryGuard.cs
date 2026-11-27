@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Watt.Plugins.Support;
 
 namespace Watt.Plugins.BleGatt
 {
@@ -15,6 +16,9 @@ namespace Watt.Plugins.BleGatt
     /// "consecutive +1" signature. Once detected it keeps returning the stable baseline; a later
     /// lower reading is treated as a real discharge and becomes the new baseline. State is stored
     /// next to the other Watt user data so a restart does not resurrect the fake climb.
+    ///
+    /// A rising level while the device reports charging is normal, so the caller passes that flag
+    /// and the guard never learns the counter quirk from a charging device.
     /// </summary>
     internal static class BleBatteryGuard
     {
@@ -26,11 +30,7 @@ namespace Watt.Plugins.BleGatt
 
         private static string StatePath
         {
-            get
-            {
-                var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                return Path.Combine(local, "Watt", "ble-battery-guard.txt");
-            }
+            get { return WattPaths.DataFile("ble-battery-guard.txt"); }
         }
 
         /// <summary>True after this device has shown the consecutive +1 counter signature.</summary>
@@ -50,10 +50,10 @@ namespace Watt.Plugins.BleGatt
         /// value above 100 unless this device already has a learned counter quirk, in which case
         /// the learned baseline is returned (the device can continue counting past 100).
         /// </summary>
-        internal static int? NormalizeOrIgnore(string key, int raw)
+        internal static int? NormalizeOrIgnore(string key, int raw, bool charging = false)
         {
             if (raw < 0) return null;
-            if (raw <= 100) return Normalize(key, raw);
+            if (raw <= 100) return Normalize(key, raw, charging);
 
             if (string.IsNullOrEmpty(key)) return null;
             lock (Sync)
@@ -66,7 +66,7 @@ namespace Watt.Plugins.BleGatt
         }
 
         /// <summary>Returns the value Watt should display for a raw GATT read.</summary>
-        internal static int Normalize(string key, int raw)
+        internal static int Normalize(string key, int raw, bool charging = false)
         {
             if (string.IsNullOrEmpty(key)) return raw;
             if (raw < 0) raw = 0;
@@ -78,11 +78,13 @@ namespace Watt.Plugins.BleGatt
                 DeviceState state;
                 if (!_states.TryGetValue(key, out state))
                 {
+                    var createdAt = DateTime.UtcNow;
                     _states[key] = new DeviceState
                     {
                         Baseline = raw,
                         LastRaw = raw,
-                        LastSeenUtc = DateTime.UtcNow,
+                        LastSeenUtc = createdAt,
+                        LastSeenUtcTicks = createdAt.Ticks,
                         SequentialIncrements = 0,
                         Quirked = false
                     };
@@ -98,11 +100,22 @@ namespace Watt.Plugins.BleGatt
                         // A real discharge (or a counter reset) is useful information.
                         state.Baseline = raw;
                         state.LastRaw = raw;
-                        state.LastSeenUtc = now;
+                        Touch(state, now);
                         SaveLocked();
                         return raw;
                     }
                     return state.Baseline;
+                }
+
+                if (charging)
+                {
+                    // While charging, a level that climbs by one is the normal direction. Reset
+                    // the learning window instead of misclassifying the device as a counter.
+                    state.Baseline = raw;
+                    state.LastRaw = raw;
+                    state.SequentialIncrements = 0;
+                    Touch(state, now);
+                    return raw;
                 }
 
                 if (raw <= state.LastRaw)
@@ -112,7 +125,7 @@ namespace Watt.Plugins.BleGatt
                     if (raw < state.Baseline) state.Baseline = raw;
                     state.SequentialIncrements = 0;
                     state.LastRaw = raw;
-                    state.LastSeenUtc = now;
+                    Touch(state, now);
                     return raw;
                 }
 
@@ -122,7 +135,7 @@ namespace Watt.Plugins.BleGatt
                 if (!sequential) state.Baseline = raw;
 
                 state.LastRaw = raw;
-                state.LastSeenUtc = now;
+                Touch(state, now);
 
                 if (state.SequentialIncrements >= RequiredSequentialIncrements)
                 {
@@ -135,6 +148,22 @@ namespace Watt.Plugins.BleGatt
             }
         }
 
+        /// <summary>Test hook: forgets the in-memory learned state.</summary>
+        internal static void ResetForTests()
+        {
+            lock (Sync)
+            {
+                _states = null;
+                _loaded = false;
+            }
+        }
+
+        private static void Touch(DeviceState state, DateTime now)
+        {
+            state.LastSeenUtc = now;
+            state.LastSeenUtcTicks = now.Ticks;
+        }
+
         private static void EnsureLoaded()
         {
             if (_loaded) return;
@@ -145,7 +174,7 @@ namespace Watt.Plugins.BleGatt
                 if (!File.Exists(StatePath)) return;
                 foreach (var line in File.ReadAllLines(StatePath))
                 {
-                    if (string.IsNullOrEmpty(line) || line[0] == '#') continue;
+                    if (string.IsNullOrEmpty(line) || line[0] == '#' || line[0] == '\uFEFF') continue;
                     var parts = line.Split('\t');
                     if (parts.Length < 5) continue;
 
@@ -158,14 +187,22 @@ namespace Watt.Plugins.BleGatt
                         !long.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out ticks))
                         continue;
 
+                    var now = DateTime.UtcNow;
+                    var seenUtc = now;
+                    if (ticks > 0 && ticks <= now.Ticks)
+                    {
+                        try { seenUtc = new DateTime(ticks, DateTimeKind.Utc); }
+                        catch { seenUtc = now; }
+                    }
+
                     _states[parts[0]] = new DeviceState
                     {
                         Baseline = Clamp(baseline),
                         LastRaw = Clamp(lastRaw),
                         Quirked = quirked,
-                        LastSeenUtc = DateTime.UtcNow,
-                        SequentialIncrements = 0,
-                        LastSeenUtcTicks = ticks
+                        LastSeenUtc = seenUtc,
+                        LastSeenUtcTicks = ticks > 0 ? ticks : now.Ticks,
+                        SequentialIncrements = 0
                     };
                 }
             }
@@ -179,9 +216,6 @@ namespace Watt.Plugins.BleGatt
         {
             try
             {
-                var directory = Path.GetDirectoryName(StatePath);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
                 var builder = new StringBuilder();
                 builder.AppendLine("# Watt BLE battery guard; delete this file to forget learned devices.");
                 foreach (var pair in _states)
@@ -194,10 +228,7 @@ namespace Watt.Plugins.BleGatt
                         .AppendLine();
                 }
 
-                var temporary = StatePath + ".tmp";
-                File.WriteAllText(temporary, builder.ToString(), Encoding.UTF8);
-                if (File.Exists(StatePath)) File.Delete(StatePath);
-                File.Move(temporary, StatePath);
+                AtomicFile.WriteAllText(StatePath, builder.ToString(), new UTF8Encoding(false));
             }
             catch
             {
